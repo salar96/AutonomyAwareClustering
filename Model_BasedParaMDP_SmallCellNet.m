@@ -1,12 +1,14 @@
 %% This code implements the Parameterized MEP.
 % No learning here.
-
+clear
+close all
+clc
 %% Setting Hyperparameters
-resource_count = 10;
+resource_count = 6;
 betamin = 1e-6;
-betamax = 1e7;
-beta_growth_rate = 1.1;
-PERTURB = 1e-5;
+betamax = 1e5;
+beta_growth_rate = 2.0;
+PERTURB = 1e-1;
 gamma = 1.0; % discount factor
 count_zeta_max = 200;
 count_V_max = 200;
@@ -15,8 +17,8 @@ count_G_max = 200;
 alpha = 0.0010; % gradient learning rate for parameters
 %% Train loop
 
-load('clusters_data.mat');
-para = data;
+data = load('para3.mat');
+para = data.para;
 para(resource_count+1,:) = [4 7];
 
 
@@ -28,6 +30,8 @@ V = zeros(state_count, 1);
 
 beta = betamin;
 while beta < betamax
+    para(1:resource_count,:) = para(1:resource_count,:) + PERTURB*randn(resource_count,2);
+
     disp('beta=');
     disp(beta);
     beta = beta * beta_growth_rate;
@@ -109,18 +113,7 @@ while beta < betamax
                 C2(1:resource_count+1, 1:end) = 0;
                 C2(resource_count+2:end, resource_count+1:end) = 0;
           
-                % C1(logical(eye(size(C1)))) = 0;
-                % C1(1:action_count, 1:action_count) = 0;
-                % C1(action_count+1:end, :) = 0;
-                % C1(action_count, 1:action_count) = 0; % f and d to d
-                % C1(action_count, action_count+1:end) = 0; % node to d
-                % C1(1:action_count-1, action_count) = 0; % d to f
-                % C2(logical(eye(size(C2)))) = 0;
-                % C2(1:action_count, 1:action_count) = 0;
-                % C2(action_count+1:end, :) = 0;
-                % C2(action_count, 1:action_count) = 0; % f and d to d
-                % C2(action_count, action_count+1:end) = 0; % node to d
-                % C2(1:action_count-1, action_count) = 0; % d to f
+              
 
 
                 C1 = THETA.*C1;
@@ -164,19 +157,41 @@ while beta < betamax
         end
         count_zeta = count_zeta + 1;
     end
-    para(1:resource_count,:) = para(1:resource_count,:) + PERTURB*randn(resource_count,2);
     % disp('Small Cell Location');
     % disp(para(1:resource_count,:));
     
 end
+%%
 [P, C] = prob_costMatrixv3(para, state_count, action_count);
 TT = log(P);
 TT(isinf(TT)) = 0;
 AvC = squeeze(sum(P.*C,1));
 D = policy_eval(gamma,P,AvC, state_count, action_count);
-plot(para(action_count+1:end,1), para(action_count+1:end,2), '.');
-hold on; axis square
-plot(para(action_count,1), para(action_count,2),'.');
-plot(para(1:resource_count,1), para(1:resource_count,2),'*',MarkerSize=12);
-hold off
-%legend('Users','Base station','Small Cells');
+
+mu_n = mu(resource_count+2:end,:);
+% Define colormap for clusters
+cmap = hsv(size(mu_n, 2)); % Generate a distinct color for each cluster
+
+% Plot nodes belonging to each cluster with unique colors
+hold on; axis square;
+for cluster_idx = 1:size(mu_n, 2)-1
+    % Find indices of nodes belonging to the current cluster
+    cluster_nodes = find(mu_n(:, cluster_idx));
+
+    % Plot the nodes of the current cluster
+    plot(para(cluster_nodes+resource_count+1, 1), para(cluster_nodes+resource_count+1, 2), 'o', 'Color', cmap(cluster_idx, :));
+    
+    plot(para(cluster_idx, 1), para(cluster_idx, 2), '*', 'MarkerSize', 12, 'Color', cmap(cluster_idx, :));
+end
+
+
+% Plot other specific nodes
+
+
+
+% plot(para(action_count+1:end,1), para(action_count+1:end,2), '.');
+% hold on; axis square
+% plot(para(action_count,1), para(action_count,2),'.');
+% plot(para(1:resource_count,1), para(1:resource_count,2),'*',MarkerSize=12);
+% hold off
+% legend('Users','Base station','Small Cells');

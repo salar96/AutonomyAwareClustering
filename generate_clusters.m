@@ -30,7 +30,7 @@ function generate_clusters(k, N, p, filename)
         points = cluster_centers(i, :) + spread * (rand(n_points, 2) - 0.5);
 
         % Ensure points are within [0, 10]
-        points = max(min(points, 10), 0);
+        %points = max(min(points, 10), 0);
 
         % Append points and labels
         data = [data; points];

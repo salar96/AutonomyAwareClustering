@@ -1,7 +1,7 @@
 function [P, C] = prob_costMatrixv3(para, state_count, action_count)
 P = zeros(state_count, state_count, action_count);
 C = zeros(state_count, state_count, action_count);
-
+big_cost = 10000;
 for a = 1 : action_count
     for s = 1 : state_count
         if s == action_count
@@ -11,8 +11,8 @@ for a = 1 : action_count
             P(s,s,a) = 1;
         else
             if a ~= 1
-                P(1,s,a) = 0.1;   
-                P(a,s,a) = 0.9;  
+                P(1,s,a) = 0.0001;   
+                P(a,s,a) = 0.9999;  
             else
                 P(1,s,a) = 1;
             end
@@ -46,18 +46,22 @@ end
 
 % C(1:state_count+1:end,:) = 100; % self hopping
 
-C(repmat(logical(eye(state_count)), 1, 1, action_count)) = 100;
+C(repmat(logical(eye(state_count)), 1, 1, action_count)) = big_cost;
 
 % Step 2: f2f
 C(1:action_count, 1:action_count,:) = 0;
 
 % Step 3: all to nodes
-C(action_count+1:end, :,:) = 100;
+C(action_count+1:end, :,:) = big_cost;
 
 % Step 4: Modify the action_count-th row
 C(action_count, 1:action_count,:) = 0; % f and d to d
-C(action_count, action_count+1:end,:) = 100; % node to d
+C(action_count, action_count+1:end,:) = big_cost; % node to d
 
 % Step 5: Modify the action_count-th column
-C(1:action_count-1, action_count,:) = 100; % d to f
+C(1:action_count-1, action_count,:) = big_cost; % d to f
+
+% for k =1:action_count
+%     C(:,:,k) = C(:,:,k)';
+% end
 end

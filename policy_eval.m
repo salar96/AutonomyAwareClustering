@@ -1,4 +1,4 @@
-function V = policy_eval(gamma,P,AvC, state_count, action_count)
+function Q = policy_eval(gamma,P,AvC, state_count, action_count)
 V = zeros(state_count, 1);
 V_old = V;
 count1 = 1;
