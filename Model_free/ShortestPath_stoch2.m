@@ -94,7 +94,7 @@ function [next_state, cost, done] = ShortestPath_stoch2(state, action, para, res
         else %f2f
             cost=0;
             next_state = action;
-            done=0;
+            done=1;
         end
         
     else % at n
@@ -109,7 +109,7 @@ function [next_state, cost, done] = ShortestPath_stoch2(state, action, para, res
         else %n2f
             cost = norm(para(state,:) - para(action,:))^2; 
             next_state = action;
-            done = 1;
+            done = 0;
         end
     end
 

@@ -1,10 +1,14 @@
 %% Reinforcement Learning for parameter identification in Small Cell Network Design Problem
 MV=0.8;
-COUNT_ZETA = 50;
+COUNT_ZETA = 10;
+EPS_RATE = 0.95;
 delta_zeta = 0.0001; %for gradient estimation
 resource_count = 6;
-para = zeros(6,2);
-para(6,:) = [4,7];
+para = zeros(resource_count,2);
+para(resource_count+1,:) = [4 7];
+tot_epi = 2000;
+betamin = 0.001;
+betamax = 50; % if the final results are a bit off, it is because of condition in lines 70-78
 Centroids = [1.5 2.5; 3 1; 5 1; 8 1; 10, 2.5; 9, 5];
 rng('default');
 rng(1);
@@ -19,8 +23,10 @@ for i = 1 : length(Centroids)
 end
 action_count = resource_count + 1; % number of possible actions
 state_count = length(para); % total number of states
-tot_epi = 1000; betamin = 0.001; betamax = 1000; 
-choice1 = [1, 2]; mu = (1/action_count)*ones(state_count,action_count); V = zeros(state_count);
+
+choice1 = [1, 2];
+mu = (1/action_count)*ones(state_count,action_count);
+V = zeros(state_count);
 beta_arr = 10.^(linspace(log10(betamin),log10(betamax),tot_epi));
 
 for ep = 1 : tot_epi
@@ -80,7 +86,7 @@ for ep = 1 : tot_epi
                     end
                 end
                 itr = itr + 1;
-                epsilon = epsilon * 0.95;
+                epsilon = epsilon * EPS_RATE;
                 state = next_state;
                 if done
                     break;
@@ -221,7 +227,7 @@ hold off
 mu_n = mu(resource_count+2:end,:);
 % Define colormap for clusters
 cmap = hsv(size(mu_n, 2)); % Generate a distinct color for each cluster
-
+mu_n = round(mu_n); %%%%%%%%%%%%%%%%%%%%%%% WATCH OUT%%%%%%%
 % Plot nodes belonging to each cluster with unique colors
 hold on; axis square;
 for cluster_idx = 1:size(mu_n, 2)-1
