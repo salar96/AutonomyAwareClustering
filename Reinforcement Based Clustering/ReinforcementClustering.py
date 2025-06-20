@@ -28,7 +28,7 @@ def prob_p_kji(N, M):
 
 
 def reinforcement_clustering(
-    beta_min, beta_max, tau, M, X, episodes=100, GD_iter=100, tol=1e-6
+    beta_min, beta_max, tau, M, X, episodes=100, GD_iter=1000, tol=1e-6
 ):
 
     N, d = X.shape
@@ -42,22 +42,22 @@ def reinforcement_clustering(
     prob = prob_p_kji(N, M)
     t = 0  # time step (used for schedules)
 
-    buffer = np.ones((N, M, M))  # keep memory of interactions
+    buffer = np.zeros((N, M, M))  # keep memory of interactions
 
     while beta <= beta_max:
         for _ in range(episodes):  # Outer convergence loop
-            i = np.random.randint(N)
-            j = np.argmax(pi[i])  # this hould be greedy
-            k = np.random.choice(M, p=prob[i, j, :])
-            buffer[i, j, k] += 1
-            eps = epsilon_schedule(t)
-            d_bar[i, j] = eps * d_t(X[i], Y[j]) + (1 - eps) * d_t(X[i], Y[k])
+            for i in range(N):
+                j = np.random.choice(M, p=pi[i])  # this hould be greedy
+                k = np.random.choice(M, p=prob[i, j, :])
+                buffer[i, j, k] += 1
+                eps = epsilon_schedule(t)
+                d_bar[i, j] = eps * d_t(X[i], Y[j]) + (1 - eps) * d_t(X[i], Y[k])
         d_mins = np.min(d_bar, axis=1, keepdims=True)
         pi = np.exp(-beta * (d_bar - d_mins))
         pi /= pi.sum(axis=1, keepdims=True)  # shape (N, M)
-        transitipn_prob = buffer / np.sum(
+        transitipn_prob = buffer / ( np.sum(
             buffer, axis=2, keepdims=True
-        )  # shape (N, M, M)
+        ) + 1e-8) # shape (N, M, M)
         derivs = np.zeros_like(Y)  # shape (M , 2)
         for _ in range(GD_iter):  # Inner convergence loop
             # for l in range(M):

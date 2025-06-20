@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def generate_cluster_data(N, K, P, random_seed=None):
@@ -33,3 +34,28 @@ def generate_cluster_data(N, K, P, random_seed=None):
         data.append(cluster_points)
 
     return np.vstack(data)
+
+
+def load_fund_data_as_numpy(file_path):
+    # Read Excel file
+    df = pd.read_excel(file_path, header = 1)
+
+    # Optional: clean Rating (convert stars to integer, e.g. '5★' → 5)
+    df["Rating"] = df["Rating"].str.extract(r"(\d)").astype(int)
+
+    # Select only numeric columns (or explicitly specify desired columns)
+    feature_columns = [
+        "Return(%)",
+        "Volatility(%)",
+        "ExpenseRatio",
+        "Equity(%)",
+        "Debt(%)",
+        "AUM(Cr)",
+        "Rating",
+        "Inflows(Cr)",
+    ]
+
+    # Convert to NumPy array
+    feature_matrix = df[feature_columns].to_numpy(dtype=float)
+
+    return feature_matrix
