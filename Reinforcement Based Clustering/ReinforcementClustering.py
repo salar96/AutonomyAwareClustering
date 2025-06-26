@@ -45,6 +45,7 @@ def reinforcement_clustering(
     buffer = np.zeros((N, M, M))  # keep memory of interactions
 
     while beta <= beta_max:
+        print(f"Beta: {beta:.3f}")
         for _ in range(episodes):  # Outer convergence loop
             for i in range(N):
                 j = np.random.choice(M, p=pi[i])  # this hould be greedy

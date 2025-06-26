@@ -44,8 +44,8 @@ def animate_Clusters(
     all_y = np.concatenate(
         [nodes[:, 1], nodes[:, 1]] + [f[:, 1] for f in Facilities_over_time]
     )
-    ax.set_xlim(min(all_x) - 0.2, max(all_x) + 0.2)
-    ax.set_ylim(min(all_y) - 0.2, max(all_y) + 0.2)
+    # ax.set_xlim(min(all_x) - 0.2, max(all_x) + 0.2)
+    # ax.set_ylim(min(all_y) - 0.2, max(all_y) + 0.2)
 
     # Animation update function
     def update(frame):
