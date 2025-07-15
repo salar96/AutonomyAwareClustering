@@ -1,4 +1,4 @@
-function [D_bar,Du] = distortion2(X,Y,M,N,K,T_P)
+function [D_bar,Du] = distortion(X,Y,M,N,K,T_P)
     X = X'; X = X(:); X = X';
     Xar = repmat(X,[K 1]);
     Yar = repmat(Y,[1 M]);
@@ -8,15 +8,6 @@ function [D_bar,Du] = distortion2(X,Y,M,N,K,T_P)
     for i = 1:N
         D = D + D2(:,i:N:end);
     end
-    %D = D';
-    % D_bar = zeros(K,M);
-    % for i = 1 : M
-    %     for j = 1 : K
-    %         for k = 1 : K
-    %             D_bar(j,i) = D_bar(j,i) + T_P(k,j,i)*D(k,i);
-    %         end
-    %     end
-    % end
     
     T_P_perm = permute(T_P, [2, 3, 1]);  % Now: K (j) × M (i) × K (k)
 
