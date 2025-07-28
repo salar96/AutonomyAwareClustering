@@ -123,11 +123,11 @@ T_P = zeros(K,K,M);
 for j = 1 : K
     for k = 1 : K
         if j ~= k
-            %T_P(k,j,:) = 1/(K*(K-1));
-            T_P(k,j,:) = 1/K;
+            T_P(k,j,:) = 1/(K*(K-1));
+            %T_P(k,j,:) = 1/K;
         end
     end
-    %T_P(j,j,:) = (K-1)/K;
+    T_P(j,j,:) = (K-1)/K;
 end
 
 
@@ -157,7 +157,7 @@ end
 % T_P = p_l_given_ji;
 
 beta_cr = 0;
-v = VideoWriter('my_simulation_video_With_TP.mp4', 'MPEG-4');  % or 'Motion JPEG AVI'
+v = VideoWriter('my_simulation_video_With_TP.mp4', 'Motion JPEG 2000');  % or 'Motion JPEG AVI'
 v.FrameRate = 10;  % frames per second
 open(v);
 while T >= Tmin
@@ -186,12 +186,13 @@ while T >= Tmin
         end
         L_old = L;
     end
-    T_cr = critical_beta(X, Y, K, M, T_P, P, rho);
+    %T_cr = critical_beta(X, Y, K, M, T_P, P, rho);
+    T_cr = critical_beta_NewDelta(X, Y, K, M, T_P, P, rho);
     fprintf('%d %d \n',T,T_cr);
     T = T*alpha;
     scatter(X(:,1),X(:,2),'.'); hold on;
     scatter(Y(:,1),Y(:,2),'d','filled'); title(T); hold off;
     frame = getframe(gcf);       % gcf = current figure
-    writeVideo(v, frame);  
+    %writeVideo(v, frame);  
 end
 close(v);
