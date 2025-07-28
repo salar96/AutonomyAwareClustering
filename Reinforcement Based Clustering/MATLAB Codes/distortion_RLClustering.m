@@ -1,4 +1,4 @@
-function [D_bar,Du] = distortion(X,Y,M,N,K,T_P)
+function [D_bar,Du] = distortion_RLClustering(X,Y,M,N,K,T_P)
     X = X'; X = X(:); X = X';
     Xar = repmat(X,[K 1]);
     Yar = repmat(Y,[1 M]);
