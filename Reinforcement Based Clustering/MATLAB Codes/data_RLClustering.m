@@ -1,0 +1,189 @@
+function [X,K,T_P,M,N] = data_RLClustering(idx)
+    if idx == 1
+        data = readtable('streaming_users_dataset.csv');
+        X = [data.AvgWatchTime data.GenreDiversity data.PreferredGenreAction...
+            data.PreferredGenreDrama data.PreferredGenreComedy data.BingeFrequency data.SubscriptionTier];
+        
+        K = 3; % clusters
+        [M, N] = size(X);
+        T_P = zeros(K, K, M);
+        
+        for j = 1:K  % prescribed cluster
+            for i = 1:M  % user index
+                probs = zeros(1, K);
+                for l = 1:K
+                    if l == j
+                        probs(l) = rand * 0.3 + 0.7; % strong preference for own cluster (0.7–1.0)
+                    else
+                        probs(l) = rand * 0.1;       % small probability for others (0–0.1)
+                    end
+                end
+                probs = probs / sum(probs);  % normalize
+                T_P(:, j, i) = probs(:);
+            end
+        end
+
+    elseif idx == 2
+        %% Constructing Data Set 1
+        C1 = [0 0]; C2 = [1 0]; C3 = [0.5 0.9]; 
+        C4 = [5 0]; C5 = [6 0]; C6 = [5.5 0.9]; 
+        C7 = [2.5 4.2]; C8 = [3.5 4.2]; C9 = [3 5];
+        rng('default');
+        Centers = [C1; C2; C3; C4; C5; C6; C7; C8; C9];
+        Np = 100;
+        count = 1;
+        X = zeros(size(Centers,1)*Np, 2);
+        for i = 1 : size(Centers,1)
+            for j = 1 : Np
+                x = normrnd(Centers(i,1),0.125);
+                y = normrnd(Centers(i,2),0.125);
+                X(count,:) = [x y];
+                count = count + 1;
+            end
+        end
+        K = 9; [M, N] = size(X);
+        T_P = zeros(K,K,M);
+        for j = 1 : K
+            for k = 1 : K
+                if j ~= k
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
+                end
+            end
+            T_P(j,j,:) = (K-1)/K;
+        end
+
+    elseif idx == 3
+        %% Constructing Data Set 2
+        C1 = [0 0]; C2 = [2 0]; C3 = [1 2]; 
+        C4 = [4 0]; C5 = [6 0]; C6 = [5 2]; 
+        C7 = [2 3.8]; C8 = [4 3.8]; C9 = [3 5.5];
+        C10 = [3,2];
+        rng('default');
+        Centers = [C1; C2; C3; C4; C5; C6; C7; C8; C9; C10];
+        Np = 200;
+        count = 1;
+        X = zeros(size(Centers,1)*Np, 2);
+        for i = 1 : size(Centers,1)
+            for j = 1 : Np
+                x = normrnd(Centers(i,1),0.175);
+                y = normrnd(Centers(i,2),0.175);
+                X(count,:) = [x y];
+                count = count + 1;
+            end
+        end
+
+        K = 10; [M, N] = size(X);
+        T_P = zeros(K,K,M);
+        for j = 1 : K
+            for k = 1 : K
+                if j ~= k
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
+                end
+            end
+            T_P(j,j,:) = (K-1)/K;
+        end
+
+    elseif idx == 4
+        C11 = [-8 -4]; C21 = [4 -4]; C31 = [4 4]; C41 = [-8 4];
+        rng('default');
+        Centers = [C11; C21; C31; C41];
+        
+        Np = 200;
+        count = 1;
+        X = zeros(size(Centers,1)*Np, 2);
+        C = zeros(size(Centers,1)*Np, 1);
+        for i = 1 : size(Centers,1)
+            for j = 1 : Np
+                x = normrnd(Centers(i,1),0.25);
+                y = normrnd(Centers(i,2),0.25);
+                X(count,:) = [x y];
+                C(count) = i;
+                count = count + 1;
+            end
+        end
+        K = 4; [M, N] = size(X);
+        T_P = zeros(K,K,M);
+        for j = 1 : K
+            for k = 1 : K
+                if j ~= k
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
+                end
+            end
+            T_P(j,j,:) = (K-1)/K;
+        end
+
+    elseif idx == 5
+        %% Constructing Data Set 4
+        C11 = [-8 -4]; C21 = [4 -4]; C31 = [4 4]; C41 = [-8 4];
+        C12 = C11 + [3.5 0]; C13 = C11 + [0 3.5]; C14 = C11 + [3.5 3.5];
+        C22 = C21 + [3.5 0]; C23 = C21 + [0 3.5]; C24 = C21 + [3.5 3.5];
+        C32 = C31 + [3.5 0]; C33 = C31 + [0 3.5]; C34 = C31 + [3.5 3.5];
+        C42 = C41 + [3.5 0]; C43 = C41 + [0 3.5]; C44 = C41 + [3.5 3.5];
+        
+        
+        rng('default');
+        Centers = [C11; C12; C13; C14; C21; C22; C23; C24;...
+                   C31; C32; C33; C34; C41; C42; C43; C44];
+        Np = 200;
+        count = 1;
+        X = zeros(size(Centers,1)*Np, 2);
+        C = zeros(size(Centers,1)*Np, 1);
+        for i = 1 : size(Centers,1)
+            for j = 1 : Np
+                x = normrnd(Centers(i,1),0.25);
+                y = normrnd(Centers(i,2),0.25);
+                X(count,:) = [x y];
+                C(count) = i;
+                count = count + 1;
+            end
+        end
+
+        K = 9; [M, N] = size(X);
+        T_P = zeros(K,K,M);
+        for j = 1 : K
+            for k = 1 : K
+                if j ~= k
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
+                end
+            end
+            T_P(j,j,:) = (K-1)/K;
+        end
+
+    elseif idx == 6
+
+        C1 = [2,4]; C2 = [4,7]; C3 = [5,5]; C4 = [5,3]; C5 = [4,1];
+        rng('default');
+        Centers = [C1; C2; C3; C4; C5];
+        Np = 200;
+        count = 1;
+        X = zeros(size(Centers,1)*Np, 2);
+        C = zeros(size(Centers,1)*Np, 1);
+        for i = 1 : size(Centers,1)
+            for j = 1 : Np
+                x = normrnd(Centers(i,1),0.25);
+                y = normrnd(Centers(i,2),0.25);
+                X(count,:) = [x y];
+                C(count) = i;
+                count = count + 1;
+            end
+        end
+
+        K = 5; [M, N] = size(X);
+        T_P = zeros(K,K,M);
+        for j = 1 : K
+            for k = 1 : K
+                if j ~= k
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
+                end
+            end
+            T_P(j,j,:) = (K-1)/K;
+        end
+        
+    end
+
+end

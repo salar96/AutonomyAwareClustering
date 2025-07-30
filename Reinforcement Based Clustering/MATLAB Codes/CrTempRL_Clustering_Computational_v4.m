@@ -1,6 +1,6 @@
 function [PSI, f_val] = CrTempRL_Clustering_Computational_v4(X, K, T_P)
     M = size(X,1); N = 2; Tmin = 0.0005; alpha = 0.99; PERTURB = 0.0001; 
-    STOP = 1e-2; T = 6; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
+    STOP = 1e-2; T = 0.5; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
     PSI = zeros(size(Y)); rho = Px;
     while T >= Tmin
         L_old = inf;
@@ -33,12 +33,13 @@ function [PSI, f_val] = CrTempRL_Clustering_Computational_v4(X, K, T_P)
         x_temp = PSI'; x0 = x_temp(:);
         fun = @(x)objective(x,X,Y,K,M,T_P,P,rho,T);
         nonclon = @(x)nonlin_const(x);
-        A = []; b = []; Aeq = []; beq = []; lb = -ones(size(x0)); ub = ones(size(x0));
-        options = optimoptions('fmincon','Display','iter','StepTolerance',1e-05);
-        [PSI, f_val] = fmincon(fun,x0,A,b,Aeq,beq,lb,ub,nonclon,options);
+        A = []; b = []; Aeq = []; beq = [];
+        options = optimoptions('fmincon','Display','off','StepTolerance',1e-05,'MaxFunctionEvaluations',1e03);
+        [PSI, f_val] = fmincon(fun,x0,A,b,Aeq,beq,[],[],nonclon,options);
         [T_cr, Delta] = critical_beta_NewDelta(X, Y, K, M, T_P, P, rho);
         fprintf('%d %d %d \n',T, T_cr, f_val);
-        %disp(min(eig(eye(2*K)-2/T*Delta)));
+        %disp(Y);
+        disp(min(eig(eye(2*K)-2/T*Delta)));
         T = T*alpha;
     end
 end
@@ -89,6 +90,7 @@ function fun = objective(x,X,Y,K,M,T_P,P,rho,T)
 end
 
 function [c, c_eq] = nonlin_const(x)
-    c = []; PSI = x;
-    c_eq = norm(PSI) - 2;
+    c_eq = []; PSI = x;
+    c = -norm(PSI) + 1;
+    %c_eq = norm(PSI) - 2;
 end

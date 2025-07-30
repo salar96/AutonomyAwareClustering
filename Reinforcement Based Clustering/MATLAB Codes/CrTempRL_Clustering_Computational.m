@@ -1,6 +1,6 @@
 function [PSI, f_val] = CrTempRL_Clustering_Computational(X, K, T_P)
     M = size(X,1); N = 2; Tmin = 0.0005; alpha = 0.99; PERTURB = 0.0001; 
-    STOP = 1e-2; T = 0.31; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
+    STOP = 1e-2; T = 6; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
     PSI = zeros(size(Y)); rho = Px;
     while T >= Tmin
         L_old = inf;
@@ -37,8 +37,9 @@ function [PSI, f_val] = CrTempRL_Clustering_Computational(X, K, T_P)
         options = optimoptions('fmincon','Display','iter','StepTolerance',1e-05);
         [PSI, f_val] = fmincon(fun,x0,A,b,Aeq,beq,lb,ub,nonclon,options);
         fprintf('%d %d \n',T, f_val);
-        [~, Delta] = critical_beta(X, Y, K, M, T_P, P, rho);
+        [T_cr, Delta] = critical_beta(X, Y, K, M, T_P, P, rho);
         disp(min(eig(eye(2*K)-2/T*Delta)));
+        disp(T_cr);
         T = T*alpha;
     end
 end
@@ -114,7 +115,7 @@ end
 
 
 function [c, c_eq] = nonlin_const(x,K,M,P,rho,X,Y,T_P)
-    c_eq = zeros(2,1); c = []; Px = rho;
+    c_eq = zeros(1,1); Px = rho;
     x_temp = reshape(x,[2,K]); Psi = x_temp';
     PSI = x;
     Cov2 = {};
@@ -127,7 +128,8 @@ function [c, c_eq] = nonlin_const(x,K,M,P,rho,X,Y,T_P)
             end
             Cov2{i} = Cov2{i} + P(i,j)*temp_cov;
         end
-        c_eq(1) = c_eq(1) + Px(i)*Cov2{i}^2;
+        c_eq = c_eq + Px(i)*Cov2{i}^2;
     end
-    c_eq(2) = norm(PSI) - 2;
+    %c_eq(2) = norm(PSI) - 2;
+    c = -norm(PSI) + 1;
 end
