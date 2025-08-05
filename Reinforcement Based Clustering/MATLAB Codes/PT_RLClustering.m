@@ -53,7 +53,7 @@ while T >= Tmin
 end
 %close(v);
 idx1 = find(P(:,1)==1);
-idx2 = find(P(:,2)==1);
+idx2 = finhttps://www.recordingblogs.com/wiki/shelving-filterd(P(:,2)==1);
 idx3 = find(P(:,3)==1);
 
 idx = ones(M,1); idx(idx1) = 1; idx(idx2) = 2; idx(idx3) = 3;
