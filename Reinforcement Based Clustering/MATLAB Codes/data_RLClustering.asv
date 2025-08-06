@@ -90,7 +90,7 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         rng('default');
         Centers = [C11; C21; C31; C41];
         
-        Np1 = 400; Np2 = 500; Np3 = 300; Np4 = 600;
+        Np1 = 400; Np2 = 400; Np3 = 400; Np4 = 400;
         count = 1;
         X = zeros((Np1+Np2+Np3+Np4), 2);
         C = zeros((Np1+Np2+Np3+Np4), 1);
@@ -105,8 +105,8 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         end
     
         for j = 1 : Np2
-            x = normrnd(Centers(2,1),0.7);
-            y = normrnd(Centers(2,2),0.7);
+            x = normrnd(Centers(2,1),0.75);
+            y = normrnd(Centers(2,2),0.75);
             X(count,:) = [x y];
             C(count) = 2;
             count = count + 1;
@@ -121,33 +121,28 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         end
 
         for j = 1 : Np4
-            x = normrnd(Centers(4,1),0.85);
-            y = normrnd(Centers(4,2),0.85);
+            x = normrnd(Centers(4,1),0.8);
+            y = normrnd(Centers(4,2),0.8clc ...
+                );
             X(count,:) = [x y];
             C(count) = 4;
             count = count + 1;
         end
+
+
 
         K = 4; [M, N] = size(X);
         T_P = zeros(K,K,M);
         for j = 1 : K
             for k = 1 : K
                 if j ~= k
-                    %T_P(k,j,:) = 1/(K*(K-1));
+                    T_P(k,j,:) = 1/(K*(K-1));
                     %T_P(k,j,:) = 1/K;
-                    T_P(k,j,:) = 0;
                 end
             end
-            %T_P(j,j,:) = (K-1)/K;
-            T_P(j,j,:) = 1;
+            T_P(j,j,:) = (K-1)/K;
         end
-        scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
-            'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
-        xlim([-7 7]); ylim([-6 6]); axis square; box on; 
-        set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
-        xticks([-5 0 5]); yticks([-5 0 5]);
-        
-        print(gcf, 'Setup_2D.png', '-dpng', '-r600');
+        scatter(X(:,1),X(:,2),'filled','MarkerEdgeColor',[0 .5 .5],'MarkerFaceColor',[0 .7 .7],'LineWidth',1.5); xlim([-7 7]); ylim([-7 7]); axis square;
 
     elseif idx == 5
         %% Constructing Data Set 4
