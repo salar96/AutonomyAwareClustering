@@ -134,12 +134,13 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
             for k = 1 : K
                 if j ~= k
                     %T_P(k,j,:) = 1/(K*(K-1));
-                    %T_P(k,j,:) = 1/K;
-                    T_P(k,j,:) = 0;
+                    T_P(k,j,:) = 1/K;
+                    %T_P(k,j,:) = 0;
                 end
             end
             %T_P(j,j,:) = (K-1)/K;
-            T_P(j,j,:) = 1;
+            T_P(j,j,:) = 1/K;
+            %T_P(j,j,:) = 1;
         end
         scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
             'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 

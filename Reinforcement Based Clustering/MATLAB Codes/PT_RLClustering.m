@@ -1,9 +1,9 @@
 %% This code implements the DA algorithm with p(k|j,i) transition prob.
 
-idx = 1;
-[X,K,T_P,M,N] = data_RLClustering(idx);
+idx = 4;
+[X,K,T_P,M,N] = data_RLClustering(idx); close all;
 X_org = X;
-X = zscore(X);
+[X, mu, sigma] = zscore(X);
 
 %% Setting for DA parameters
 
@@ -52,8 +52,13 @@ while T >= Tmin
     %writeVideo(v, frame);  
 end
 %close(v);
-idx1 = find(P(:,1)==1);
-idx2 = finhttps://www.recordingblogs.com/wiki/shelving-filterd(P(:,2)==1);
-idx3 = find(P(:,3)==1);
+Y = Y.*sigma + mu; X = X.*sigma + mu;
 
-idx = ones(M,1); idx(idx1) = 1; idx(idx2) = 2; idx(idx3) = 3;
+scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
+            'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
+xlim([-7 7]); ylim([-6 6]); axis square; box on; 
+set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
+xticks([-5 0 5]); yticks([-5 0 5]);
+%hold on; scatter(Y(:,1),Y(:,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', 'r');hold off;
+savefig('Setup_2D.fig');
+print(gcf, 'Setup_2D.png', '-dpng', '-r600');
