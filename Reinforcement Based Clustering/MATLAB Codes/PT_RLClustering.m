@@ -1,6 +1,5 @@
 %% This code implements the DA algorithm with p(k|j,i) transition prob.
-
-idx = 4;
+idx = 3;
 [X,K,T_P,M,N] = data_RLClustering(idx); close all;
 X_org = X;
 [X, mu, sigma] = zscore(X);
@@ -42,9 +41,9 @@ while T >= Tmin
         L_old = L;
     end
     %T_cr = critical_beta(X, Y, K, M, T_P, P, rho);
-    %T_cr = critical_beta_NewDelta(X, Y, K, M, T_P, P, rho);
-    %fprintf('%d %d \n',T,T_cr);
-    disp(T);
+    T_cr = critical_beta_NewDelta(X, Y, K, M, T_P, P, rho);
+    fprintf('%d %d \n',T,T_cr);
+    %disp(T);
     T = T*alpha;
     %scatter(X(:,1),X(:,2),'.'); hold on;
     %scatter(Y(:,1),Y(:,2),'d','filled'); title(T); hold off;
@@ -55,10 +54,22 @@ end
 Y = Y.*sigma + mu; X = X.*sigma + mu;
 
 scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
-            'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
+           'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
 xlim([-7 7]); ylim([-6 6]); axis square; box on; 
 set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
 xticks([-5 0 5]); yticks([-5 0 5]);
-%hold on; scatter(Y(:,1),Y(:,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', 'r');hold off;
-savefig('Setup_2D.fig');
-print(gcf, 'Setup_2D.png', '-dpng', '-r600');
+hold on; scatter(Y(:,1),Y(:,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', 'r');hold off;
+%savefig('Setup_2D.fig');
+%print(gcf, 'Setup_2D.png', '-dpng', '-r600');
+% cluster_labels = zeros(length(X),1);
+% for i = 1 : length(X)
+%     cluster_labels(i) = find(P(i,:)>=0.95);
+% end
+% 
+% [coeff, score, ~] = pca(X); % X is your N x 7 data matrix
+% gscatter(score(:,1), score(:,2), cluster_labels)
+% xlabel('PC 1'); ylabel('PC 2');
+% title('PCA-based Cluster Visualization');
+% 
+% parallelcoords(X, 'Group', cluster_labels, 'Standardize', 'on');
+% title('Parallel Coordinates Plot for 7D Data');
