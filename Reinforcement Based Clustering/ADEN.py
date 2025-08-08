@@ -104,28 +104,6 @@ class AdaptiveDistanceBlock(nn.Module):
         return data_emb
 
 
-class LearnableMetricTensor(nn.Module):
-    """Learns a metric tensor for adaptive distance computation"""
-
-    def __init__(self, d_model: int, rank: int = None):
-        super().__init__()
-        self.d_model = d_model
-        self.rank = rank or min(d_model, 64)  # Low-rank approximation for efficiency
-
-        # Low-rank factorization: M = U @ V^T where M is d_model x d_model
-        self.U = nn.Parameter(torch.randn(d_model, self.rank) * 0.1)
-        self.V = nn.Parameter(torch.randn(d_model, self.rank) * 0.1)
-
-        # Diagonal component for stability
-        self.diagonal = nn.Parameter(torch.ones(d_model) * 0.1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Reconstruct metric tensor
-        metric = torch.mm(self.U, self.V.t()) + torch.diag(self.diagonal)
-
-        # Apply metric: x^T M x for each pair
-        return torch.matmul(x, torch.matmul(metric, x.transpose(-2, -1)))
-
 
 class ADEN(nn.Module):
     """
@@ -144,7 +122,6 @@ class ADEN(nn.Module):
         d_ff: int = 2048,
         dropout: float = 0.1,
         use_metric_tensor: bool = True,
-        metric_rank: int = None,
     ):
         super().__init__()
 
@@ -156,10 +133,6 @@ class ADEN(nn.Module):
         self.data_projection = nn.Linear(input_dim, d_model)
         self.cluster_projection = nn.Linear(input_dim, d_model)
 
-        # Positional encoding (learnable)
-        self.data_pos_encoding = nn.Parameter(torch.randn(1, 1000, d_model) * 0.1)
-        self.cluster_pos_encoding = nn.Parameter(torch.randn(1, 100, d_model) * 0.1)
-
         # Stack of adaptive distance blocks
         self.blocks = nn.ModuleList(
             [
@@ -168,9 +141,6 @@ class ADEN(nn.Module):
             ]
         )
 
-        # Learnable metric tensor
-        if use_metric_tensor:
-            self.metric_tensor = LearnableMetricTensor(d_model, metric_rank)
 
         # Output layers
         self.output_norm = nn.LayerNorm(d_model)
@@ -233,10 +203,6 @@ class ADEN(nn.Module):
         data_emb = self.data_projection(data_points)
         cluster_emb = self.cluster_projection(cluster_centers)
 
-        # Add positional encoding
-        data_emb = data_emb + self.data_pos_encoding[:, :N, :]
-        cluster_emb = cluster_emb + self.cluster_pos_encoding[:, :M, :]
-
         # Pass through adaptive distance blocks
         for block in self.blocks:
             data_emb = block(data_emb, cluster_emb)
@@ -255,15 +221,6 @@ class ADEN(nn.Module):
 
         # Compute base distances
         base_distances = self.compute_base_distances(data_points, cluster_centers)
-
-        # Apply metric tensor if enabled
-        if self.use_metric_tensor:
-            metric_correction = self.metric_tensor(
-                torch.cat([data_emb, cluster_emb], dim=1)
-            )[
-                :, :N, N:
-            ]  # Extract data-cluster interactions
-            distance_deviations = distance_deviations + metric_correction
 
         # Final adaptive distances
         adaptive_distances = base_distances + self.temperature * distance_deviations
