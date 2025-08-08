@@ -106,12 +106,35 @@ class AdaptiveDistanceBlock(nn.Module):
 
 
 class ADEN(nn.Module):
-    """
-    Adaptive Distance Estimation Network
 
-    A sophisticated architecture for learning adaptive distances in clustering tasks.
-    Combines transformer-style attention, learnable metrics, and residual connections.
     """
+    Adaptive Distance Estimation Network (ADEN)
+    A neural network architecture designed to learn adaptive distance metrics for clustering tasks.
+    ADEN enhances traditional distance-based clustering by learning context-aware distance functions
+    that adapt to the underlying data structure.
+    
+    Architecture Overview:
+    1. Input projections map data points and cluster centers to a common embedding space
+    2. Multiple adaptive distance blocks process the embeddings using self-attention
+    3. The final distance computation combines Squared Euclidean distance with learned adaptations
+    Parameters:
+        input_dim (int): Dimension of input features
+        d_model (int): Internal representation dimension (default: 512)
+        n_layers (int): Number of adaptive distance blocks (default: 6)
+        n_heads (int): Number of attention heads in each block (default: 8)
+        d_ff (int): Dimension of feed-forward networks in blocks (default: 2048)
+        dropout (float): Dropout probability (default: 0.1)
+    Methods:
+        compute_base_distances: Calculates squared Euclidean distances between points and centers
+        forward: Performs full distance computation incorporating learned adaptations
+    Inputs:
+        data_points: Tensor of shape (batch_size, N, input_dim) containing data points
+        cluster_centers: Tensor of shape (batch_size, M, input_dim) containing cluster centers
+    Outputs:
+        adaptive_distances: Tensor of shape (batch_size, N, M) containing the adaptive distances
+                            between each data point and cluster center
+    """
+ 
 
     def __init__(
         self,
@@ -121,29 +144,28 @@ class ADEN(nn.Module):
         n_heads: int = 8,
         d_ff: int = 2048,
         dropout: float = 0.1,
-        use_metric_tensor: bool = True,
+        device: torch.device = torch.device("cuda"),
     ):
         super().__init__()
 
         self.input_dim = input_dim
         self.d_model = d_model
-        self.use_metric_tensor = use_metric_tensor
 
         # Input projections
-        self.data_projection = nn.Linear(input_dim, d_model)
-        self.cluster_projection = nn.Linear(input_dim, d_model)
+        self.data_projection = nn.Linear(input_dim, d_model).to(device)
+        self.cluster_projection = nn.Linear(input_dim, d_model).to(device)
 
         # Stack of adaptive distance blocks
         self.blocks = nn.ModuleList(
             [
-                AdaptiveDistanceBlock(d_model, d_ff, n_heads, dropout)
+                AdaptiveDistanceBlock(d_model, d_ff, n_heads, dropout).to(device)
                 for _ in range(n_layers)
             ]
         )
 
 
         # Output layers
-        self.output_norm = nn.LayerNorm(d_model)
+        self.output_norm = nn.LayerNorm(d_model).to(device)
         self.distance_head = nn.Sequential(
             nn.Linear(d_model * 2, d_model),
             nn.GELU(),
@@ -152,10 +174,10 @@ class ADEN(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(256, 1),
-        )
+        ).to(device)
 
         # Temperature parameter for distance scaling
-        self.temperature = nn.Parameter(torch.tensor(1.0))
+        self.temperature = nn.Parameter(torch.tensor(1.0)).to(device)
 
         self._init_weights()
 
@@ -243,48 +265,34 @@ class ADENLoss(nn.Module):
         self,
         predicted_distances: torch.Tensor,
         target_distances: torch.Tensor,
-        model: ADEN,
     ) -> torch.Tensor:
         # Main distance prediction loss
         distance_loss = F.mse_loss(predicted_distances, target_distances)
 
-        # Regularization on metric tensor
-        reg_loss = 0.0
-        if model.use_metric_tensor:
-            U, V = model.metric_tensor.U, model.metric_tensor.V
-            reg_loss = torch.norm(U, "fro") + torch.norm(V, "fro")
-
-        # Temperature regularization
-        temp_reg = torch.abs(model.temperature - 1.0)
-
-        total_loss = self.alpha * distance_loss + self.beta * (reg_loss + temp_reg)
+        total_loss = distance_loss
 
         return total_loss
 
 
 def create_sample_data(
-    batch_size: int = 32, N: int = 100, M: int = 10, d: int = 64
+    batch_size: int = 32, N: int = 100, M: int = 10, d: int = 64, device: torch.device = torch.device("cuda")
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create sample data for testing"""
-    data_points = torch.randn(batch_size, N, d)
-    cluster_centers = torch.randn(batch_size, M, d)
+    data_points = torch.randn(batch_size, N, d, device=device)
+    cluster_centers = torch.randn(batch_size, M, d, device=device)
 
     # Generate target distances (base + some learned pattern)
     base_dist = torch.cdist(data_points, cluster_centers, p=2) ** 2
-    noise = 0.1 * torch.randn_like(base_dist)
+    noise = 0.1 * torch.randn_like(base_dist).to(device)  # Add some noise to simulate learned deviations
     target_distances = base_dist + noise
 
     return data_points, cluster_centers, target_distances
 
 
-def train_aden():
+def train_aden(model):
     """Example training loop"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Initialize model
-    model = ADEN(
-        input_dim=64, d_model=256, n_layers=4, n_heads=8, d_ff=1024, dropout=0.1
-    ).to(device)
 
     # Loss and optimizer
     criterion = ADENLoss(alpha=1.0, beta=0.01)
@@ -292,7 +300,7 @@ def train_aden():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000)
 
     model.train()
-    for epoch in range(100):
+    for epoch in range(1000):
         # Generate batch data
         data_points, cluster_centers, target_distances = create_sample_data()
         data_points = data_points.to(device)
@@ -301,7 +309,7 @@ def train_aden():
 
         # Forward pass
         predicted_distances = model(data_points, cluster_centers)
-        loss = criterion(predicted_distances, target_distances, model)
+        loss = criterion(predicted_distances, target_distances)
 
         # Backward pass
         optimizer.zero_grad()
@@ -317,11 +325,7 @@ def train_aden():
 if __name__ == "__main__":
     # Test the model
     model = ADEN(input_dim=64, d_model=256, n_layers=4)
-    data_points, cluster_centers, _ = create_sample_data(batch_size=2, N=50, M=5)
+    data_points, cluster_centers, target_distances = create_sample_data(batch_size=2, N=50, M=5)
 
-    with torch.no_grad():
-        output = model(data_points, cluster_centers)
-        print(f"Input data shape: {data_points.shape}")
-        print(f"Cluster centers shape: {cluster_centers.shape}")
-        print(f"Output distance matrix shape: {output.shape}")
-        print(f"Sample distances:\n{output[0, :5, :].numpy()}")
+    # train
+    train_aden(model)
