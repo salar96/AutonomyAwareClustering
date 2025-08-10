@@ -180,7 +180,7 @@ class ADEN(nn.Module):
         self.temperature = nn.Parameter(torch.tensor(1.0)).to(device)
 
         self._init_weights()
-
+        self.device = device
     def _init_weights(self):
         """Initialize weights using Xavier/Glorot initialization"""
         for module in self.modules():
@@ -201,7 +201,7 @@ class ADEN(nn.Module):
 
         # Squared Euclidean distance
         diff = data_expanded - centers_expanded  # (batch_size, N, M, d)
-        base_distances = torch.sum(diff**2, dim=-1)  # (batch_size, N, M)
+        base_distances = 0.5 * torch.sum(diff**2, dim=-1)  # (batch_size, N, M)
 
         return base_distances
 
@@ -245,8 +245,8 @@ class ADEN(nn.Module):
         base_distances = self.compute_base_distances(data_points, cluster_centers)
 
         # Final adaptive distances
-        adaptive_distances = base_distances + self.temperature * distance_deviations
-
+        # adaptive_distances = base_distances + self.temperature * distance_deviations
+        adaptive_distances = base_distances + distance_deviations
         # Ensure non-negative distances
         adaptive_distances = F.softplus(adaptive_distances)
 
