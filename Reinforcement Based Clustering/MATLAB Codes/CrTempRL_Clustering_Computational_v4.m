@@ -1,6 +1,6 @@
 function [PSI, f_val] = CrTempRL_Clustering_Computational_v4(X, K, T_P)
     M = size(X,1); N = 2; Tmin = 0.0005; alpha = 0.99; PERTURB = 0.0001; 
-    STOP = 1e-2; T = 0.5; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
+    STOP = 1e-2; T = 16; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
     PSI = zeros(size(Y)); rho = Px;
     while T >= Tmin
         L_old = inf;
