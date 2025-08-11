@@ -104,15 +104,13 @@ class AdaptiveDistanceBlock(nn.Module):
         return data_emb
 
 
-
 class ADEN(nn.Module):
-
     """
     Adaptive Distance Estimation Network (ADEN)
     A neural network architecture designed to learn adaptive distance metrics for clustering tasks.
     ADEN enhances traditional distance-based clustering by learning context-aware distance functions
     that adapt to the underlying data structure.
-    
+
     Architecture Overview:
     1. Input projections map data points and cluster centers to a common embedding space
     2. Multiple adaptive distance blocks process the embeddings using self-attention
@@ -134,7 +132,6 @@ class ADEN(nn.Module):
         adaptive_distances: Tensor of shape (batch_size, N, M) containing the adaptive distances
                             between each data point and cluster center
     """
- 
 
     def __init__(
         self,
@@ -163,7 +160,6 @@ class ADEN(nn.Module):
             ]
         )
 
-
         # Output layers
         self.output_norm = nn.LayerNorm(d_model).to(device)
         self.distance_head = nn.Sequential(
@@ -181,11 +177,12 @@ class ADEN(nn.Module):
 
         self._init_weights()
         self.device = device
+
     def _init_weights(self):
-        """Initialize weights using Xavier/Glorot initialization"""
+        """Initialize all weights to zero"""
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
+                nn.init.zeros_(module.weight)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
@@ -248,7 +245,7 @@ class ADEN(nn.Module):
         # adaptive_distances = base_distances + self.temperature * distance_deviations
         adaptive_distances = base_distances + distance_deviations
         # Ensure non-negative distances
-        adaptive_distances = F.softplus(adaptive_distances)
+        adaptive_distances = F.relu(adaptive_distances)
 
         return adaptive_distances
 
@@ -275,7 +272,11 @@ class ADENLoss(nn.Module):
 
 
 def create_sample_data(
-    batch_size: int = 32, N: int = 100, M: int = 10, d: int = 64, device: torch.device = torch.device("cuda")
+    batch_size: int = 32,
+    N: int = 100,
+    M: int = 10,
+    d: int = 64,
+    device: torch.device = torch.device("cuda"),
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Create sample data for testing"""
     data_points = torch.randn(batch_size, N, d, device=device)
@@ -283,7 +284,9 @@ def create_sample_data(
 
     # Generate target distances (base + some learned pattern)
     base_dist = torch.cdist(data_points, cluster_centers, p=2) ** 2
-    noise = 0.1 * torch.randn_like(base_dist).to(device)  # Add some noise to simulate learned deviations
+    noise = 0.1 * torch.randn_like(base_dist).to(
+        device
+    )  # Add some noise to simulate learned deviations
     target_distances = base_dist + noise
 
     return data_points, cluster_centers, target_distances
@@ -292,7 +295,6 @@ def create_sample_data(
 def train_aden(model):
     """Example training loop"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
     # Loss and optimizer
     criterion = ADENLoss(alpha=1.0, beta=0.01)
@@ -325,7 +327,9 @@ def train_aden(model):
 if __name__ == "__main__":
     # Test the model
     model = ADEN(input_dim=64, d_model=256, n_layers=4)
-    data_points, cluster_centers, target_distances = create_sample_data(batch_size=2, N=50, M=5)
+    data_points, cluster_centers, target_distances = create_sample_data(
+        batch_size=2, N=50, M=5
+    )
 
     # train
     train_aden(model)
