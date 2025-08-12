@@ -134,13 +134,13 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         for j = 1 : K
             for k = 1 : K
                 if j ~= k
-                    %T_P(k,j,:) = 1/(K*(K-1));
-                    T_P(k,j,:) = 1/K;
+                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/K;
                     %T_P(k,j,:) = 0;
                 end
             end
-            %T_P(j,j,:) = (K-1)/K;
-            T_P(j,j,:) = 1/K;
+            T_P(j,j,:) = (K-1)/K;
+            %T_P(j,j,:) = 1/K;
             %T_P(j,j,:) = 1;
         end
         scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
@@ -286,6 +286,30 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         %     %T_P(j,j,:) = (K-1)/K;
         %     T_P(j,j,:) = 1;
         % end
+        elseif idx == 9
+        rng('default');
+        data = readtable('/home/amber-srivastava/OneDrive/Research/RL Clustering/Dataset/ml-20m/movielens20m_streaming_user_features.csv');
+        X = [data.WatchTimeHours data.GenresWatched data.TrendingContentPct...
+            data.BingeFreq data.CompletionRate data.SubscriptionTier data.LateNightWatchPct];
+        
+        K = 3; % clusters
+        [M, N] = size(X);
+        T_P = zeros(K, K, M);
+        
+        for j = 1:K  % prescribed cluster
+            for i = 1:M  % user index
+                probs = zeros(1, K);
+                for l = 1:K
+                    if l == j
+                        probs(l) = rand * 0.3 + 0.7; % strong preference for own cluster (0.7–1.0)
+                    else
+                        probs(l) = rand * 0.1;       % small probability for others (0–0.1)
+                    end
+                end
+                probs = probs / sum(probs);  % normalize
+                T_P(:, j, i) = probs(:);
+            end
+        end
     end
 
 
