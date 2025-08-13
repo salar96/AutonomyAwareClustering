@@ -1,4 +1,4 @@
-% Reinforcement‑Based Clustering (practical MATLAB version)
+% Reinforcement‑Based Clustering
 % Inputs:
 %   X         : M x N data matrix
 %   K         : number of clusters
@@ -67,19 +67,22 @@ while T > Tmin
         end
 
         if norm(Q_old - Q) < 1e-04
-            break;
+           break;
         end
     end
 
     % ===== "centroid" loop: update Y given current P and stochasticity =====
     gamma = 0.001;
-    Y1 = Y(:,1); Y2 = Y(:,2);
-    parfor t = 1 : MaxOuterY
-        idx = randi([1 length(Memory.i)]);
-        i = Memory.i(idx); j = Memory.j(idx); k = Memory.k(idx);
-        Y(k,:) = Y(k,:) - gamma*P(i,j)*(Y(k,:) - X(i,:));
-        
-        
+    Y1 = Y(:,1); Y2 = Y(:,2); Pij = cell(K,1);
+    Pij{1} = P; P{2} = P; {}
+    parfor l = 1 : K
+        for t = 1 : MaxOuterY
+            idx = randi([1 length(Memory.i)]);
+            i = Memory.i(idx); j = Memory.j(idx); k = Memory.k(idx);
+            if k == l
+                Y(l,:) = Y(l,:) - gamma*P(i,j)*(Y(l,:) - X(i,:));
+            end
+        end
     end
 
     disp(T);

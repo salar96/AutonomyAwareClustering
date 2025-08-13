@@ -1,4 +1,4 @@
-% Reinforcement‑Based Clustering (practical MATLAB version)
+% Reinforcement‑Based Clustering
 % Inputs:
 %   X         : M x N data matrix
 %   K         : number of clusters
@@ -73,14 +73,25 @@ while T > Tmin
 
     % ===== "centroid" loop: update Y given current P and stochasticity =====
     gamma = 0.001;
-    Y1 = Y(:,1); Y2 = Y(:,2);
-    for t = 1 : MaxOuterY
-        idx = randi([1 length(Memory.i)]);
-        i = Memory.i(idx); j = Memory.j(idx); k = Memory.k(idx);
-        Y(k,:) = Y(k,:) - gamma*P(i,j)*(Y(k,:) - X(i,:));
-        
+    Pij = cell(K,1); Par_memory = cell(K,1); X_par = cell(K,1);
+    for k = 1 : K
+        Pij{k} = P; Par_memory{k} = Memory; X_par{k} = X;
     end
-
+    count1 = cell(K,1); count1{1} = 1; count1{2} = 1; count1{3} = 1; count1{4} = 1;
+    parfor l = 1 : K
+        for t = 1 : MaxOuterY
+            idx = randi([1 length(Par_memory{l}.i)]);
+            i = Par_memory{l}.i(idx); j = Par_memory{l}.j(idx); k = Par_memory{l}.k(idx);
+            if k == l
+                Y(l,:) = Y(l,:) - gamma*Pij{l}(i,j)*(Y(l,:) - X_par{l}(i,:));
+                count1{l} = count1{l} + 1;
+            end
+        end
+    end
+    ttl =  count1{1} + count1{2} + count1{3} + count1{4};
+    fprintf('%d %d %d %d %d', count1{1}, count1{2}, count1{3}, count1{4});
+    fprintf(' = '); fprintf('%d', ttl);
+    fprintf('\n');
     disp(T);
     T = T*0.99;
 end
