@@ -17,8 +17,9 @@ alp = 1; count = ones(length(X),K); eps = 0.1;
 Qbar = zeros(length(X),K); indx = 1;
 
 Tmin = 0.001; alpha = 0.99; PERTURB = 0.0001; STOP = 1e-2;
-T = 5; Px = (1/M)*ones(M,1); Y = load('Ydata_idx4.mat'); %Y = repmat(Px'*X, [K,1]);
-MaxOuter = 5000; P = 1/K*ones(M,K);
+T = 5; Px = (1/M)*ones(M,1); Y = repmat(Px'*X, [K,1]);
+MaxOuterP = 5000; MaxOuterY = 5000; P = 1/K*ones(M,K);
+gamma = 0.1;
 
 Memory.i = []; Memory.j = []; Memory.k = [];
 
@@ -26,9 +27,10 @@ Memory.i = []; Memory.j = []; Memory.k = [];
 
 while T > Tmin
     
-    % ===== "policy" loop: update Pi given current Y =====
-    for t = 1 : MaxOuter
+    % ===== "policy" loop: update P given current Y =====
+    for t = 1 : MaxOuterP
         
+        Q_old = Q;
         values = 1:length(X);
         if indx <= length(X)
             i = indx;
@@ -53,7 +55,7 @@ while T > Tmin
         P(i,:) = exp(-(1/T)*Qbar(i,:));
         P(i,:) = P(i,:)./(repmat(sum(P(i,:)),[1 K]));
         
-        if length(Memory.i) < 10000
+        if length(Memory.i) < 100000
             Memory.i = [Memory.i i]; 
             Memory.j = [Memory.j j]; 
             Memory.k = [Memory.k k];
@@ -64,17 +66,25 @@ while T > Tmin
             Memory.k = [Memory.k k];
         end
 
+        if norm(Q_old - Q) < 1e-04
+            break;
+        end
     end
+
+    % ===== "centroid" loop: update Y given current P and stochasticity =====
+    gamma = 0.001;
+    Y1 = Y(:,1); Y2 = Y(:,2);
+    for t = 1 : MaxOuterY
+        idx = randi([1 length(Memory.i)]);
+        i = Memory.i(idx); j = Memory.j(idx); k = Memory.k(idx);
+        Y(k,:) = Y(k,:) - gamma*P(i,j)*(Y(k,:) - X(i,:));
+        
+    end
+
     disp(T);
     T = T*0.98;
 end
 close all;
-scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
-'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5);
-xlim([-2 2]); ylim([-2 2]); axis square; box on;
-set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
-xticks([-5 0 5]); yticks([-5 0 5]);
-hold on; scatter(Y.Y(:,1),Y.Y(:,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', 'r');
 
 P_idx = round(P);
 idx = cell(K,1);
@@ -82,8 +92,10 @@ for k = 1 : K
     idx{k} = find(P(:,k)==1);
     col = rand(1,3);
     scatter(X(idx{k},1),X(idx{k},2),90,'filled','MarkerEdgeColor','k',...
-        'MarkerFaceColor',col,'LineWidth',0.25);
-    scatter(Y.Y(k,1),Y.Y(k,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', col, 'LineWidth',2);
+        'MarkerFaceColor',col,'LineWidth',0.25); hold on;
+    scatter(Y(k,1),Y(k,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', col, 'LineWidth',2);
 end
-
-
+xlim([-2 2]); ylim([-2 2]); axis square; box on;
+set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
+xticks([-2 0 2]); yticks([-2 0 2]); hold off;
+save('results_Alg2.mat');
