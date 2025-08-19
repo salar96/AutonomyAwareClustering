@@ -9,7 +9,7 @@
 %   Y         : K x N cluster centers
 
 % ------------------ initialization -------------------
-tic; close all; clc; 
+tic; close all; clc;
 idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx); 
 [X, ~, ~] = zscore(X); 
 alp = 1; count = ones(length(X),K); eps = 0.1;

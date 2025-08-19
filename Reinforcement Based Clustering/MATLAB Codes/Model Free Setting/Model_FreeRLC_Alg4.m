@@ -10,7 +10,7 @@ clear; clc; rng(1);
 [X,mu,sig] = zscore(X);            % normalize for stability
 
 % ---------------------- Hyper‑parameters --------------------------------
-beta_min = 40;  beta_max = 50;    % anneal range
+beta_min = 1;  beta_max = 50;    % anneal range
 tau       = 1.2;                   % anneal factor (beta <- min(beta*tau,...))
 eps       = 0.1;                   % epsilon‑greedy exploration
 H_target  = 250;                   % steps between target net updates
@@ -26,7 +26,9 @@ cos_T   = MaxOuterY;               % cosine period for Y schedule
 
 % ------------------------ Initialization --------------------------------
 % Centers: start from K‑means++ seeds
-Y = kpp_init(X,K);
+Px = (1/M)*ones(M,1);               % weight for each user data point
+Y = repmat(Px'*X, [K,1]);        
+%Y = kpp_init(X,K);
 
 % Distance model d̂(x,y;θ): tiny MLP (4→32→16→1) on [x;y]
 theta = nn_init([4,32,16,1]);
@@ -123,6 +125,7 @@ while beta <= beta_max + 1e-12
         end
         % single synchronized update
         Y = Y - etaY * G;
+        disp(etaY);
     end
 
     fprintf('beta = %.4g, buffer = %d\n', beta, buf_n);
