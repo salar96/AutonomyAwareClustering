@@ -214,7 +214,7 @@ for inner1 = 1 : length(MaxInnerThetaArr)
             num = exp(-(1/T)*d_bar);
             den = sum(num);
             P(i,:) = num/den;
-            [~,P_idx(i)] = max(d_bar);
+            [~,P_idx(i)] = min(d_bar);
         end
         
         idx = cell(K,1);
