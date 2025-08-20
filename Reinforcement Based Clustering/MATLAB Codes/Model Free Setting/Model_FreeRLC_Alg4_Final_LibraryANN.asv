@@ -1,61 +1,65 @@
 %% Algorithm 4: Deep Clustering Algorithm (large N/ continuous X) - In-built ANN library
 clear; clc; rng(1);
-
-% ------------------ initialization -------------------
-close all; clc; 
-idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
-[X,mu,sig] = zscore(X);
-
-T = 10; Tmin = 0.01; tau = 0.96;    % annealing parameters
-eps = 0.1;                          % for epsilon greedy policy 
-Sz_miniBatch = 512;                 % size of the minibatch for both nets and Y
-buf_cap = 200000;                   % memory or replay capacity
-
 MaxInnerTheta = 200;                % policy update loop max iterations
 MaxInnerY = 200;                    % max iterations in Y update loop
-MaxInnerThetaArr = [100, 150, 200, 250];
-MaxInnerYArr = [100, 150, 200, 250];
-H_target = MaxInnerTheta/10;        % steps between target net updates
-
-alpha = 0.005;                      % learning rate for Y SGD
-gamma = 0.001;                      % learning rate for policy SGD update
-
-Px = (1/M)*ones(M,1);               % weight for each user data point
-[idx_clust, Y] = kmeans(X,K);        % Starting with Y
-
-P = 1/K*ones(M,K);                  % Policy 
-
-
-idx_input = randi([1 length(X)],[Sz_miniBatch,1]);
-init_trainInput = zeros(Sz_miniBatch,2*N);
-init_trainOutput = zeros(Sz_miniBatch,1);
-for i = 1 : Sz_miniBatch
-    init_trainInput(i,:) = [X(idx_input(i),:) Y(idx_clust(idx_input(i)),:)];
-    init_trainOutput(i) = norm(X(idx_input(i),:)-Y(idx_clust(idx_input(i)),:))^2;
-end
-init_trainInput = init_trainInput';
-init_trainOutput = init_trainOutput';
-Y = repmat(Px'*X, [K,1]);
-
-net = feedforwardnet([32 16], 'trainlm');
-net.trainParam.epochs = 250;
-net.trainParam.showWindow = false;
-net = train(net, init_trainInput, init_trainOutput);
-
-net_target = net;
-
-memory.i = zeros(buf_cap,1); memory.j = zeros(buf_cap,1);
-memory.k = zeros(buf_cap,1); memory.d = zeros(buf_cap,1);
-
-buf_n = 0;                          % current size of the memory
-circ_ptr = 1;                       % circular pointer
-thetaPrev = getwb(net);
-K_consec = 20;
-epsTheta = 1e-06;
-epsY = 1e-04;
-
+MaxInner = [150, 150;
+            100, 200;
+            200, 100];
+MaxInnerThetaArr = [150, 200, 250];
+MaxInnerYArr = [150, 200, 250];
+% ------------------ initialization -------------------
 for inner1 = 1 : length(MaxInnerThetaArr)
     for inner2 = 1 : length(MaxInnerYArr)
+        close all; clc; 
+        idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
+        [X,mu,sig] = zscore(X);
+        
+        T = 10; Tmin = 0.01; tau = 0.96;    % annealing parameters
+        eps = 0.1;                          % for epsilon greedy policy 
+        Sz_miniBatch = 512;                 % size of the minibatch for both nets and Y
+        buf_cap = 200000;                   % memory or replay capacity
+        
+        
+        H_target = MaxInnerTheta/10;        % steps between target net updates
+        
+        alpha = 0.005;                      % learning rate for Y SGD
+        gamma = 0.001;                      % learning rate for policy SGD update
+        
+        Px = (1/M)*ones(M,1);               % weight for each user data point
+        [idx_clust, Y] = kmeans(X,K);        % Starting with Y
+        
+        P = 1/K*ones(M,K);                  % Policy 
+        
+        
+        idx_input = randi([1 length(X)],[Sz_miniBatch,1]);
+        init_trainInput = zeros(Sz_miniBatch,2*N);
+        init_trainOutput = zeros(Sz_miniBatch,1);
+        for i = 1 : Sz_miniBatch
+            init_trainInput(i,:) = [X(idx_input(i),:) Y(idx_clust(idx_input(i)),:)];
+            init_trainOutput(i) = norm(X(idx_input(i),:)-Y(idx_clust(idx_input(i)),:))^2;
+        end
+        init_trainInput = init_trainInput';
+        init_trainOutput = init_trainOutput';
+        Y = repmat(Px'*X, [K,1]);
+        
+        net = feedforwardnet([32 16], 'trainlm');
+        net.trainParam.epochs = 250;
+        net.trainParam.showWindow = false;
+        net = train(net, init_trainInput, init_trainOutput);
+        
+        net_target = net;
+        
+        memory.i = zeros(buf_cap,1); memory.j = zeros(buf_cap,1);
+        memory.k = zeros(buf_cap,1); memory.d = zeros(buf_cap,1);
+        
+        buf_n = 0;                          % current size of the memory
+        circ_ptr = 1;                       % circular pointer
+        thetaPrev = getwb(net);
+        K_consec = 20;
+        epsTheta = 1e-06;
+        epsY = 1e-04;
+
+
         MaxInnerTheta = MaxInnerThetaArr(inner1);
         MaxInnerY = MaxInnerYArr(inner2);
     
@@ -213,7 +217,7 @@ for inner1 = 1 : length(MaxInnerThetaArr)
             num = exp(-(1/T)*d_bar);
             den = sum(num);
             P(i,:) = num/den;
-            [~,P_idx(i)] = max(d_bar);
+            [~,P_idx(i)] = min(d_bar);
         end
         
         idx = cell(K,1);
@@ -228,7 +232,9 @@ for inner1 = 1 : length(MaxInnerThetaArr)
         set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
         xticks([-2 0 2]); yticks([-2 0 2]); hold off;
         title("MaxInnerTheta = " + MaxInnerTheta + " MaxInnerY = " + MaxInnerY);
-        name = 'Run_'+MaxInnerTheta+
-        print(gcf, 'Setup_2D.png', '-dpng', '-r600');
+        name = ['Run_' num2str(MaxInnerTheta) '_' num2str(MaxInnerY) '.png'];
+        print(gcf, name, '-dpng', '-r600');
+        name = ['Run_Results_' num2str(MaxInnerTheta) '_' num2str(MaxInnerY) '.mat'];
+        save(name)
     end
 end
