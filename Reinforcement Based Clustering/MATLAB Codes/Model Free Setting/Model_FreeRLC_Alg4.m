@@ -1,0 +1,245 @@
+%% Algorithm 4: Reinforcement‑Based Clustering (large N / continuous X)
+% X in R^{M x 2}, cluster centers Y in R^{K x 2}
+clear; clc; rng(1);
+
+% ----------------------------- Data -------------------------------------
+%M = 6000;      % # data points
+%K = 6;         % # clusters
+%[X] = make_swissroll2D(M);         % Mx2 toy set in [-2,2]^2
+[X,K,T_P,M,N] = data_RLClustering_ModelFree(4); 
+[X,mu,sig] = zscore(X);            % normalize for stability
+
+% ---------------------- Hyper‑parameters --------------------------------
+beta_min = 1;  beta_max = 50;    % anneal range
+tau       = 1.2;                   % anneal factor (beta <- min(beta*tau,...))
+eps       = 0.1;                   % epsilon‑greedy exploration
+H_target  = 250;                   % steps between target net updates
+S_minib   = 512;                   % minibatch size for both nets and Y updates
+buf_cap   = 200000;                % replay capacity
+
+MaxOuterTheta = 1500;              % policy/θ updates per β
+MaxOuterY     = 1500;              % centroid updates per β
+
+alphaY0 = 5e-3;                    % base step for Y (will cosine‑anneal)
+gammaNN = 1e-3;                    % base step for θ (Adam)
+cos_T   = MaxOuterY;               % cosine period for Y schedule
+
+% ------------------------ Initialization --------------------------------
+% Centers: start from K‑means++ seeds
+Px = (1/M)*ones(M,1);               % weight for each user data point
+Y = repmat(Px'*X, [K,1]);        
+%Y = kpp_init(X,K);
+
+% Distance model d̂(x,y;θ): tiny MLP (4→32→16→1) on [x;y]
+theta = nn_init([4,32,16,1]);
+theta_targ = theta;                % θ⁻
+
+% Replay buffer fields
+R_i  = zeros(buf_cap,1,'uint32');
+R_j  = zeros(buf_cap,1,'uint16');
+R_d  = zeros(buf_cap,1);           % true squared distance
+R_k  = zeros(buf_cap,1,'uint16');
+buf_n = 0;                         % current size
+wptr  = 1;                         % circular pointer
+
+beta = beta_min;
+
+% -------------------------- Main loop -----------------------------------
+while beta <= beta_max + 1e-12
+
+    % ------------------- policy / θ updates (replay fill + train) --------
+    for t = 1:MaxOuterTheta
+        % sample a datapoint
+        i = randi(M);
+
+        % compute policy π(.|i) with θ⁻
+        d_hat = zeros(1,K);
+        for j = 1:K
+            d_hat(j) = nn_forward(theta_targ, X(i,:), Y(j,:));
+        end
+        pi = softmax_row(-beta * d_hat);
+
+        % epsilon‑greedy select j
+        if rand < eps
+            j = randi(K);
+        else
+            [~,j] = max(pi);
+        end
+
+        % environment provides a cluster k ~ π(.|i) and true distance d
+        k = randsample(1:K, 1, true, pi);
+        d_true = sum((Y(k,:) - X(i,:)).^2, 2);  % ground truth distance
+
+        % push (i,j,d_true,k) into replay buffer
+        if buf_n < buf_cap
+            pos = wptr; buf_n = buf_n + 1;
+        else
+            pos = wptr;
+        end
+        R_i(pos) = i;
+        R_j(pos) = uint16(j);
+        R_d(pos) = d_true;
+        R_k(pos) = uint16(k);
+        wptr = wptr + 1; if wptr > buf_cap, wptr = 1; end
+
+        % train θ when enough data
+        if buf_n >= S_minib
+            idx = randi(buf_n, S_minib, 1);     % uniform mini‑batch
+            loss = 0;  gsum = nn_zeros_like(theta);
+            for b = 1:S_minib
+                ii = R_i(idx(b)); jj = double(R_j(idx(b)));
+                d_t = R_d(idx(b));
+                % forward and backprop on (x_i , y_j)
+                [d_pred, cache] = nn_forward(theta, X(ii,:), Y(jj,:), true);
+                [g, ~] = nn_backward(theta, cache, d_pred - d_t); % dL/dd̂ = (d̂ - d)
+                gsum = nn_add(gsum, g);
+                loss = loss + 0.5*(d_pred - d_t)^2;
+            end
+            % Adam step on θ (mini‑batch average)
+            [theta, adam_state] = nn_adam(theta, gsum, S_minib, gammaNN);
+        end
+
+        % target network sync
+        if mod(t, H_target) == 0
+            theta_targ = theta;
+        end
+    end
+
+    % ------------------- centroid SGD updates on Y -----------------------
+    for t = 1:MaxOuterY
+        if buf_n < S_minib, break; end
+        idx = randi(buf_n, S_minib, 1);
+
+        % cosine‑annealed step for stability
+        etaY = 0.5 * alphaY0 * (1 + cos(pi * min(t,cos_T)/cos_T));
+
+        % accumulate per‑center gradients
+        G = zeros(K,2);
+        for b = 1:S_minib
+            ii = R_i(idx(b)); jj = double(R_j(idx(b))); kk = double(R_k(idx(b)));
+            % compute π(j|i) with latest θ⁻
+            d_hat = zeros(1,K);
+            for c = 1:K, d_hat(c) = nn_forward(theta_targ, X(ii,:), Y(c,:)); end
+            pij = softmax_row(-beta * d_hat);
+            G(kk,:) = G(kk,:) + pij(jj) * (Y(kk,:) - X(ii,:));   % ∂/∂Y_k term
+        end
+        % single synchronized update
+        Y = Y - etaY * G;
+        disp(etaY);
+    end
+
+    fprintf('beta = %.4g, buffer = %d\n', beta, buf_n);
+    beta = min(beta * tau, beta_max * 1.0001);
+end
+
+%% ------ simple viz (2D) ------
+figure; hold on; box on; axis equal;
+scatter(X(:,1),X(:,2),5,[.7 .7 .7],'filled'); 
+scatter(Y(:,1),Y(:,2),200,'p','filled'); title('Final centers');
+set(gca,'FontSize',12);
+
+%% ------------------ helpers ------------------
+
+function [X] = make_swissroll2D(M)
+    t = 3*pi/2*(1 + 2*rand(M,1));
+    r = t + randn(M,1)*0.2;
+    X = [r.*cos(t), r.*sin(t)]/5;
+end
+
+function Y = kpp_init(X,K)
+    % k-means++ seeding (2D version)
+    M = size(X,1);
+    Y = zeros(K,2);
+    Y(1,:) = X(randi(M),:);
+    D = sum((X - Y(1,:)).^2,2);
+    for k = 2:K
+        probs = D / sum(D);
+        idx = randsample(M,1,true,probs);
+        Y(k,:) = X(idx,:);
+        D = min(D, sum((X - Y(k,:)).^2,2));
+    end
+end
+
+function s = softmax_row(z)
+    z = z - max(z,[],2);
+    e = exp(z);
+    s = e / sum(e,2);
+end
+
+% ---------------- neural net: manual MLP ----------------
+function theta = nn_init(sizes)
+    % sizes: [in, h1, h2, out]
+    theta.W1 = 0.1*randn(sizes(1),sizes(2));
+    theta.b1 = zeros(1,sizes(2));
+    theta.W2 = 0.1*randn(sizes(2),sizes(3));
+    theta.b2 = zeros(1,sizes(3));
+    theta.W3 = 0.1*randn(sizes(3),sizes(4));
+    theta.b3 = zeros(1,sizes(4)); % scalar out
+    theta.adam_m = nn_zeros_like(theta);
+    theta.adam_v = nn_zeros_like(theta);
+    theta.adam_t = 0;
+end
+
+function Z = nn_cat(x,y)  % concat [x,y] -> 1x4
+    Z = [x(:).', y(:).'];
+end
+
+function [y, cache] = nn_forward(theta, x, yj, want_cache)
+    a0 = nn_cat(x,yj);                 % 1x4
+    z1 = a0*theta.W1 + theta.b1;  h1 = max(0,z1);     % ReLU
+    z2 = h1*theta.W2 + theta.b2; h2 = max(0,z2);
+    y  = h2*theta.W3 + theta.b3;       % 1x1 (scalar)
+    if nargin>3 && want_cache
+        cache.a0=a0; cache.z1=z1; cache.h1=h1; cache.z2=z2; cache.h2=h2;
+    end
+end
+
+function [g, dy_da0] = nn_backward(theta, cache, dL_dy)
+    % dL/dy provided (scalar). Backprop through ReLU layers.
+    dh2 = dL_dy * theta.W3';          % 1xh2
+    dz2 = dh2; dz2(cache.z2<=0)=0;
+    dW3 = (cache.h2')*dL_dy; db3 = dL_dy;
+
+    dh1 = dz2*theta.W2';              % 1xh1
+    dz1 = dh1; dz1(cache.z1<=0)=0;
+    dW2 = (cache.h1')*dz2; db2 = dz2;
+
+    da0 = dz1*theta.W1';              % 1x4
+    dW1 = (cache.a0')*dz1; db1 = dz1;
+
+    g.W1=dW1; g.b1=db1; g.W2=dW2; g.b2=db2; g.W3=dW3; g.b3=db3;
+    dy_da0 = []; % #ok<NASGU>
+end
+
+function z = nn_zeros_like(theta)
+    z.W1 = zeros(size(theta.W1)); z.b1 = zeros(size(theta.b1));
+    z.W2 = zeros(size(theta.W2)); z.b2 = zeros(size(theta.b2));
+    z.W3 = zeros(size(theta.W3)); z.b3 = zeros(size(theta.b3));
+end
+
+function sumg = nn_add(a,b)
+    sumg.W1 = a.W1 + b.W1; sumg.b1 = a.b1 + b.b1;
+    sumg.W2 = a.W2 + b.W2; sumg.b2 = a.b2 + b.b2;
+    sumg.W3 = a.W3 + b.W3; sumg.b3 = a.b3 + b.b3;
+end
+
+function [theta, state] = nn_adam(theta, gsum, B, lr)
+    % one Adam step on averages (gsum/B)
+    if ~isfield(theta,'adam_t'), theta.adam_t=0; end
+    beta1=0.9; beta2=0.999; eps=1e-8;
+    theta.adam_t = theta.adam_t + 1;
+
+    fields = {'W1','b1','W2','b2','W3','b3'};
+    for f = 1:numel(fields)
+        F = fields{f};
+        g = gsum.(F) / B;
+
+        theta.adam_m.(F) = beta1*theta.adam_m.(F) + (1-beta1)*g;
+        theta.adam_v.(F) = beta2*theta.adam_v.(F) + (1-beta2)*(g.^2);
+        mhat = theta.adam_m.(F) / (1 - beta1^theta.adam_t);
+        vhat = theta.adam_v.(F) / (1 - beta2^theta.adam_t);
+
+        theta.(F) = theta.(F) - lr * mhat ./ (sqrt(vhat) + eps);
+    end
+    state = []; % #ok<NASGU>
+end

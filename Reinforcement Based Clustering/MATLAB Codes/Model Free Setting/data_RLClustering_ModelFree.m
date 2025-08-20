@@ -143,13 +143,13 @@ function [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx)
             %T_P(j,j,:) = 1/K;
             %T_P(j,j,:) = 1;
         end
-        scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
-            'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
-        xlim([-7 7]); ylim([-6 6]); axis square; box on; 
-        set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
-        xticks([-5 0 5]); yticks([-5 0 5]);
-        
-        print(gcf, 'Setup_2D.png', '-dpng', '-r600');
+        % scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
+        %     'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 
+        % xlim([-7 7]); ylim([-6 6]); axis square; box on; 
+        % set(gca, 'FontSize', 25); set(gca, 'LineWidth', 1.0);
+        % xticks([-5 0 5]); yticks([-5 0 5]);
+        % 
+        % print(gcf, 'Setup_2D.png', '-dpng', '-r600');
 
     elseif idx == 5
         %% Constructing Data Set 4
