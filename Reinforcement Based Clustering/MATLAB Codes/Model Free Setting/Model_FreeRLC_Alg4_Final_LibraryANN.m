@@ -1,18 +1,20 @@
 %% Algorithm 4: Deep Clustering Algorithm (large N/ continuous X) - In-built ANN library
-clear; clc; rng(1);
+tic;clear; clc; rng(1);
 MaxInnerTheta = 200;                % policy update loop max iterations
 MaxInnerY = 200;                    % max iterations in Y update loop
-MaxInner = [150, 150;
-            100, 200;
-            200, 100];
+MaxInner = [200, 200;
+            250, 250;
+            300, 300;
+            350, 350;
+            400, 400];
 %MaxInnerThetaArr = [150, 200, 250];
 %MaxInnerYArr = [150, 200, 250];
 % ------------------ initialization -------------------
-for inner = 1 : length(MaxInner)
+for inner = 1 : size(MaxInner,1)
     
     close all; clc; 
     idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
-    [X,mu,sig] = zscore(X);
+    [X,mu1,sig] = zscore(X);
     
     T = 10; Tmin = 0.01; tau = 0.96;    % annealing parameters
     eps = 0.1;                          % for epsilon greedy policy 
@@ -23,6 +25,7 @@ for inner = 1 : length(MaxInner)
     H_target = MaxInnerTheta/10;        % steps between target net updates
     
     alpha = 0.005;                      % learning rate for Y SGD
+    mu = 0.9;
     gamma = 0.001;                      % learning rate for policy SGD update
     
     Px = (1/M)*ones(M,1);               % weight for each user data point
@@ -138,29 +141,29 @@ for inner = 1 : length(MaxInner)
     
         % ===== "centroid" loop: update Y given current P and stochasticity =====
     
-        Y_old = Y;
-        for t = 1 : MaxInnerY
-            idx = randi([1 buf_n]);
-            ii = memory.i(idx); jj = memory.j(idx); kk = memory.k(idx);
-            d_hat = zeros(1,K);
-            for j1 = 1 : K
-                d_hat(j1) = net_target([X(ii,:), Y(j1,:)]');
-            end
-            num = exp(-(1/T)*d_hat);
-            den = sum(num);
-            Pij = num/den;
-            Y(kk,:) = Y(kk,:) - alpha*Pij(jj)*(Y(kk,:) - X(ii,:));
-            if norm(Y_old(kk,:) - Y(kk,:)) < epsY
-                count_Y = count_Y + 1;
-            else
-                count_Y = 0;
-            end
-            %disp(count_Y);
-            if count_Y >= K_consec
-                break;
-            end
-            Y_old = Y;
-        end
+        % Y_old = Y;
+        % for t = 1 : MaxInnerY
+        %     idx = randi([1 buf_n]);
+        %     ii = memory.i(idx); jj = memory.j(idx); kk = memory.k(idx);
+        %     d_hat = zeros(1,K);
+        %     for j1 = 1 : K
+        %         d_hat(j1) = net_target([X(ii,:), Y(j1,:)]');
+        %     end
+        %     num = exp(-(1/T)*d_hat);
+        %     den = sum(num);
+        %     Pij = num/den;
+        %     Y(kk,:) = Y(kk,:) - alpha*Pij(jj)*(Y(kk,:) - X(ii,:));
+        %     if norm(Y_old(kk,:) - Y(kk,:)) < epsY
+        %         count_Y = count_Y + 1;
+        %     else
+        %         count_Y = 0;
+        %     end
+        %     %disp(count_Y);
+        %     if count_Y >= K_consec
+        %         break;
+        %     end
+        %     Y_old = Y;
+        % end
         
         net_target_ij = cell(K,1); Par_memory = cell(K,1); 
         X_par = cell(K,1); Y_par = cell(K,1); net_Y = cell(K,1);
@@ -175,6 +178,7 @@ for inner = 1 : length(MaxInner)
         parfor l = 1 : K
             Y_old = Y_par{l};
             count_Y(l) = 0;
+            V_t = zeros(size(Y_old));
             for t = 1 : MaxInnerY
                 idx = randi([1 buf_n]);
                 i = Par_memory{l}.i(idx); j = Par_memory{l}.j(idx); k = Par_memory{l}.k(idx);
@@ -185,6 +189,8 @@ for inner = 1 : length(MaxInner)
                 num = exp(-(1/T)*d_hat); den = sum(num); 
                 Pij = num/den;
                 if k == l
+                    %V_t = mu*V_t - alpha*Pij(j)*(Y_par{l} - X_par{l}(i,:));
+                    %Y_par{l} = Y_par{l} + V_t;
                     Y_par{l} = Y_par{l} - alpha*Pij(j)*(Y_par{l} - X_par{l}(i,:));
                 else
                     continue;
@@ -211,7 +217,6 @@ for inner = 1 : length(MaxInner)
     for i = 1 : M
         d_bar = zeros(K,1);
         for j = 1 : K
-            %d_bar(j) = nn_forward(theta_target, X(i,:), Y(j,:));
             d_bar(j) = net_target([X(i,:),Y(j,:)]');
         end
         num = exp(-(1/T)*d_bar);
@@ -237,3 +242,4 @@ for inner = 1 : length(MaxInner)
     name = ['Run_Results_' num2str(MaxInnerTheta) '_' num2str(MaxInnerY) '.mat'];
     save(name)
 end
+toc;
