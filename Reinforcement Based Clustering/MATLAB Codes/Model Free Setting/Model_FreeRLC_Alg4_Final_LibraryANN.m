@@ -1,8 +1,8 @@
 %% Algorithm 4: Deep Clustering Algorithm (large N/ continuous X) - In-built ANN library
-tic;clear; clc; rng(1);
+tic;clear all; clc; rng(1);
 MaxInnerTheta = 200;                % policy update loop max iterations
 MaxInnerY = 200;                    % max iterations in Y update loop
-MaxInner = [250, 250];
+MaxInner = [500, 250];
 %MaxInnerThetaArr = [150, 200, 250];
 %MaxInnerYArr = [150, 200, 250];
 v = VideoWriter('CheckingMiniBatchSGDPerformanceRun2.mp4', 'Motion JPEG 2000');  % or 'Motion JPEG AVI'
@@ -15,7 +15,7 @@ for inner = 1 : size(MaxInner,1)
     idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
     [X,mu1,sig] = zscore(X);
     
-    T = 20; Tmin = 0.01; tau = 0.95;    % annealing parameters
+    T = 100; Tmin = 0.01; tau = 0.95;    % annealing parameters
     eps = 0.1;                          % for epsilon greedy policy 
     Sz_miniBatch = 512;                 % size of the minibatch for both nets and Y
     buf_cap = 200000;                   % memory or replay capacity
@@ -85,8 +85,8 @@ for inner = 1 : size(MaxInner,1)
             if rand < eps
                 j = randi(K);
             else
-                [~,j] = max(P(i,:));
-                %j = randsample(1:K, 1, true, P(i,:));
+                %[~,j] = max(P(i,:));
+                j = randsample(1:K, 1, true, P(i,:));
             end
             
             k = randsample(1:K, 1, true, T_P(:,j,i));   % sample the cluster k using T_P
@@ -138,7 +138,7 @@ for inner = 1 : size(MaxInner,1)
             end
             %disp(t);
         end
-    
+        
         % ===== "centroid" loop: update Y given current P and stochasticity =====
     
         % Y_old = Y;
@@ -208,7 +208,7 @@ for inner = 1 : size(MaxInner,1)
         % end
 
         count_Y = zeros(K,1);
-        for l = 1 : K
+        parfor l = 1 : K
             Y_old = Y_par{l};
             count_Y(l) = 0;
             V_t = zeros(size(Y_old));
@@ -217,7 +217,7 @@ for inner = 1 : size(MaxInner,1)
                 if buf_n < 100
                     break;
                 end
-                idx = randperm(buf_n, 100);
+                idx = randperm(buf_n,100);
                 i_idx = Par_memory{l}.i(idx); j_idx = Par_memory{l}.j(idx); k_idx = Par_memory{l}.k(idx);
                 idx_l = find(k_idx == l);
                 i_idx = i_idx(idx_l); j_idx = j_idx(idx_l); k_idx = k_idx(idx_l);
