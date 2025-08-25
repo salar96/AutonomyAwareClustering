@@ -28,20 +28,21 @@ def prob_p_kji(N, M):
 
 
 def reinforcement_clustering(
-    beta_min, beta_max, tau, M, X, episodes=100, GD_iter=1000, tol=1e-6
+    beta_min, beta_max, tau, M, X, T_p, episodes=100, GD_iter=1000, tol=1e-6
 ):
 
     N, d = X.shape
     beta = beta_min
-    pi = np.full((N, M), 1 / M)
+    pi = np.full((N, M), 1 / M)  # policy
     centroid = np.mean(X, axis=0)
     Y = np.tile(centroid, (M, 1))  # Duplicate the centroid M times
-    Y_s = [Y]
-    assignment_list = [np.zeros(N)]
-    d_bar = np.zeros((N, M))
+    Y_s = [Y]  # List to keep track of centroids
+    assignment_list = [np.zeros(N)]  # List to keep track of assignments
+    d_bar = np.zeros((N, M))  # Expected value of distances
     prob = prob_p_kji(N, M)
+    # prob = T_p
     t = 0  # time step (used for schedules)
-
+    
     buffer = np.zeros((N, M, M))  # keep memory of interactions
 
     while beta <= beta_max:
