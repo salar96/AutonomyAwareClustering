@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.distance import cdist
 
 
 def epsilon_schedule(t=0):
@@ -6,7 +7,7 @@ def epsilon_schedule(t=0):
 
 
 def alpha_schedule(t=0):
-    return 0.01
+    return 0.001
 
 
 def rho_schedule(i=0):
@@ -18,17 +19,17 @@ def d_t(x, y):
 
 
 def prob_p_kji(N, M):
-    p_kji = np.full((N, M, M), 0.0 / (M - 1))  # Default: uniform for k ≠ j
+    p_kji = np.full((M, M, N), 0.0 / (M - 1))  # Default: uniform for k ≠ j
 
     for i in range(N):
         for j in range(M):
-            p_kji[i, j, j] = 1.0  # Set p(k = j | j, i)
+            p_kji[j, j, i] = 1.0  # Set p(k = j | j, i)
 
     return p_kji
 
 
 def reinforcement_clustering(
-    beta_min, beta_max, tau, M, X, T_p, episodes=100, GD_iter=1000, tol=1e-6
+    beta_min, beta_max, tau, M, X, T_p, episodes=100, GD_iter=1000, tol=1e-4
 ):
 
     N, d = X.shape
@@ -38,34 +39,34 @@ def reinforcement_clustering(
     Y = np.tile(centroid, (M, 1))  # Duplicate the centroid M times
     Y_s = [Y]  # List to keep track of centroids
     assignment_list = [np.zeros(N)]  # List to keep track of assignments
-    d_bar = np.zeros((N, M))  # Expected value of distances
-    prob = prob_p_kji(N, M)
-    # prob = T_p
+    # prob = prob_p_kji(N, M)
+    prob = T_p
     t = 0  # time step (used for schedules)
-    
+
     buffer = np.zeros((N, M, M))  # keep memory of interactions
 
     while beta <= beta_max:
         print(f"Beta: {beta:.3f}")
+        d_bar = cdist(X, Y, metric="sqeuclidean") / 2  # shape (N, M)
         for _ in range(episodes):  # Outer convergence loop
             for i in range(N):
-                j = np.random.choice(M, p=pi[i])  # this hould be greedy
-                k = np.random.choice(M, p=prob[i, j, :])
+                j = np.random.choice(M, p=pi[i])  # this should be greedy
+                k = np.random.choice(M, p=prob[:, j, i])
                 buffer[i, j, k] += 1
                 eps = epsilon_schedule(t)
-                d_bar[i, j] = eps * d_t(X[i], Y[j]) + (1 - eps) * d_t(X[i], Y[k])
+                d_bar[i, j] = eps * d_bar[i, j] + (1 - eps) * d_t(X[i], Y[k])
+
         d_mins = np.min(d_bar, axis=1, keepdims=True)
         pi = np.exp(-beta * (d_bar - d_mins))
         pi /= pi.sum(axis=1, keepdims=True)  # shape (N, M)
-        transitipn_prob = buffer / ( np.sum(
-            buffer, axis=2, keepdims=True
-        ) + 1e-8) # shape (N, M, M)
+        transition_prob = buffer / (
+            np.sum(buffer, axis=2, keepdims=True) + 1e-8
+        )  # shape (N, M, M)
+
         derivs = np.zeros_like(Y)  # shape (M , 2)
+        pi_p_all = np.sum(transition_prob * pi[:, :, None], axis=1)
         for _ in range(GD_iter):  # Inner convergence loop
-            # for l in range(M):
-            #     pi_p = np.sum(transitipn_prob[:,:,l] * pi , axis = 1, keepdims= True)
-            #     derivs[l] = np.sum((Y[l] - X) * pi_p, axis= 0)
-            pi_p_all = np.sum(transitipn_prob * pi[:, :, None], axis=1)
+
             diff = Y[:, None, :] - X[None, :, :]
             derivs = np.sum(diff * pi_p_all.T[:, :, None], axis=1)
             Y = Y - alpha_schedule(t) * derivs

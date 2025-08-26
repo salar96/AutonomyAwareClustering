@@ -15,7 +15,7 @@ def animate_Clusters(
 
     # Create a categorical colormap
     num_clusters = max(np.max(a) for a in assignment_list) + 1
-    cmap = plt.cm.get_cmap("Accent", num_clusters)
+    cmap = plt.cm.get_cmap("tab20", num_clusters)
 
     # Set up the figure
     fig = plt.figure(figsize=figuresize, facecolor=facecolor, edgecolor=edgecolor)
