@@ -3,7 +3,7 @@ from scipy.spatial.distance import cdist
 
 
 def epsilon_schedule(t=0):
-    return 0.1  # return 1 / (1 + t)
+    return 0.1 # return 1 / (1 + t)
 
 
 def alpha_schedule(t=0):
@@ -17,6 +17,91 @@ def rho_schedule(i=0):
 def d_t(x, y):
     return 0.5 * (np.linalg.norm(x - y)) ** 2
 
+def derivative_vectorized(Y, X, pi, transition_prob):
+    """
+    Vectorized implementation.
+    """
+    M, d = Y.shape
+    N = X.shape[0]
+    prob = transition_prob.transpose(2, 1, 0)  # (M, M, N)
+    # weight[l, j, i] = pi[i,j] * prob[l,j,i]
+    weight = pi.T[None, :, :] * prob  # (M, M, N)
+
+    # sum over j → (M, N)
+    W = weight.sum(axis=1)
+
+    # term1 = coeff * Y
+    term1 = (W.sum(axis=1)[:, None]) * Y
+
+    # term2 = - sum_{i} W[l,i] * X[i]
+    term2 = -(W @ X)
+
+    return term1 + term2
+
+def derivative_sampled(Y, X, pi, prob):
+    """
+    Stochastic gradient version: sample one k ~ prob[:, j, i] for each (i,j).
+    
+    Y: (M,d)
+    X: (N,d)
+    pi: (N,M)
+    prob: (M,M,N)   # prob[l,j,i]
+    
+    Returns:
+    D_Y: (M,d)
+    """
+    M, d = Y.shape
+    N = X.shape[0]
+
+    # Flatten (i,j) pairs into a single dimension for vectorized sampling
+    probs_flat = prob.reshape(M, -1).T   # shape (N*M, M)
+    ks = np.array([np.random.choice(M, p=p) for p in probs_flat])
+    ks = ks.reshape(N, M)  # back to shape (N, M)
+
+    # Prepare accumulation
+    D_Y = np.zeros((M, d))
+
+    # For each cluster l, gather contributions where ks == l
+    for l in range(M):
+        mask = (ks == l)                       # shape (N, M)
+        weights = (pi * mask).sum(axis=1)      # sum over j → shape (N,)
+        D_Y[l] = (weights[:, None] * (Y[l] - X)).sum(axis=0)
+
+    return D_Y
+
+def derivative_sampled_fast(Y, X, pi, prob):
+    """
+    Stochastic gradient version: sample one k ~ prob[:, j, i] for each (i,j).
+    
+    Y: (M,d)
+    X: (N,d)
+    pi: (N,M)
+    prob: (M,M,N)   # prob[l,j,i]
+    
+    Returns:
+    D_Y: (M,d)
+    """
+    M, d = Y.shape
+    N = X.shape[0]
+
+    # --- Step 1: sample all ks in one shot ---
+    probs_flat = prob.reshape(M, -1).T   # (N*M, M)
+    rand = np.random.rand(probs_flat.shape[0], 1)
+    cdf = np.cumsum(probs_flat, axis=1)
+    ks_flat = (rand < cdf).argmax(axis=1)   # indices sampled
+    ks = ks_flat.reshape(N, M)              # (N,M)
+
+    # --- Step 2: accumulate ---
+    i_idx, j_idx = np.meshgrid(np.arange(N), np.arange(M), indexing="ij")
+    sampled_weights = np.zeros((N, M, M))
+    sampled_weights[i_idx, j_idx, ks] = pi[i_idx, j_idx]
+
+    W = sampled_weights.sum(axis=1)   # (N,M)
+
+    term1 = (W.sum(axis=0)[:, None]) * Y
+    term2 = -(W.T @ X)
+
+    return term1 + term2
 
 def prob_p_kji(N, M):
     p_kji = np.full((M, M, N), 0.0 / (M - 1))  # Default: uniform for k ≠ j
@@ -36,8 +121,8 @@ def reinforcement_clustering(
     X,
     T_p,
     episodes=100,
-    GD_iter=1000,
-    tol=1e-4,
+    GD_iter=10000,
+    tol=1e-3,
     perturbation=0.1,
     parametrized=False,
 ):
@@ -64,10 +149,10 @@ def reinforcement_clustering(
             prob = prob / prob.sum(axis=0, keepdims=True)
             # repeat prob on axis = 2 N times
             prob = np.repeat(prob[:, :, np.newaxis], N, axis=2)  # (M, M, N)
-        print(prob[:,:,0])
+        buffer.fill(0)  # reset buffer
         for _ in range(episodes):  # Outer convergence loop
             for i in range(N):
-                j = np.random.choice(M, p=pi[i])  # this should be greedy
+                j = np.argmax(pi[i])  # greedy selection (highest probability)
                 k = np.random.choice(M, p=prob[:, j, i])
                 buffer[i, j, k] += 1
                 eps = epsilon_schedule(t)
@@ -90,9 +175,16 @@ def reinforcement_clustering(
             if np.linalg.norm(derivs) < tol:
                 break
             t += 1  # increment time step
+        # for _ in range(GD_iter):
+        #     derivs = derivative_vectorized(Y, X, pi, transition_prob)
+        #     Y = Y - alpha_schedule(t) * derivs
+        #     if np.linalg.norm(derivs) < tol:
+        #         break
+        #     t += 1
 
         beta *= tau  # annealing
         Y_s.append(Y)
+        Y += np.random.randn(M, d) * perturbation  # add perturbation
         assignment_list.append(np.argmax(pi, axis=1))
 
     return assignment_list, Y_s
