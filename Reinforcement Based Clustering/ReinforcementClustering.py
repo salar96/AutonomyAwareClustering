@@ -29,25 +29,42 @@ def prob_p_kji(N, M):
 
 
 def reinforcement_clustering(
-    beta_min, beta_max, tau, M, X, T_p, episodes=100, GD_iter=1000, tol=1e-4
+    beta_min,
+    beta_max,
+    tau,
+    M,
+    X,
+    T_p,
+    episodes=100,
+    GD_iter=1000,
+    tol=1e-4,
+    perturbation=0.1,
+    parametrized=False,
 ):
 
     N, d = X.shape
     beta = beta_min
     pi = np.full((N, M), 1 / M)  # policy
     centroid = np.mean(X, axis=0)
-    Y = np.tile(centroid, (M, 1))  # Duplicate the centroid M times
+    Y = np.tile(centroid, (M, 1))  + np.random.randn(M, d) * perturbation  # Initialize centroids
     Y_s = [Y]  # List to keep track of centroids
     assignment_list = [np.zeros(N)]  # List to keep track of assignments
     # prob = prob_p_kji(N, M)
-    prob = T_p
+    if not parametrized:
+        prob = T_p
     t = 0  # time step (used for schedules)
 
     buffer = np.zeros((N, M, M))  # keep memory of interactions
-
+    gamma = 10.0
     while beta <= beta_max:
         print(f"Beta: {beta:.3f}")
         d_bar = cdist(X, Y, metric="sqeuclidean") / 2  # shape (N, M)
+        if parametrized:
+            prob = np.exp(-gamma * cdist(Y, Y, metric="sqeuclidean") ** 2)  # (M, M)
+            prob = prob / prob.sum(axis=0, keepdims=True)
+            # repeat prob on axis = 2 N times
+            prob = np.repeat(prob[:, :, np.newaxis], N, axis=2)  # (M, M, N)
+        print(prob[:,:,0])
         for _ in range(episodes):  # Outer convergence loop
             for i in range(N):
                 j = np.random.choice(M, p=pi[i])  # this should be greedy

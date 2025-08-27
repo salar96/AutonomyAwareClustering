@@ -100,12 +100,20 @@ def data_RLClustering(idx):
         X = np.vstack(X)
         K = 4
         N, d = X.shape
-        T_P = np.zeros((K, K, N))
-        for j in range(K):
-            for k in range(K):
-                if j != k:
-                    T_P[k, j, :] = 1 / (K * (K - 1))
-            T_P[j, j, :] = (K - 1) / K
+        ############################################## CASE 1
+        # T_P = np.zeros((K, K, N))
+        # for j in range(K):
+        #     for k in range(K):
+        #         if j != k:
+        #             T_P[k, j, :] = 1 / (K * (K - 1))
+        #     T_P[j, j, :] = (K - 1) / K
+        ############################################## CASE 2
+        T_P = np.full((K, K, N), 0.0 / (K - 1))  # Default: uniform for k ≠ j
+
+        for i in range(N):
+            for j in range(K):
+                T_P[j, j, i] = 1.0  # Set p(k = j | j, i)
+        ############################################## CASE 3
 
         plt.scatter(
             X[:, 0],
@@ -121,7 +129,7 @@ def data_RLClustering(idx):
         plt.gca().tick_params(labelsize=25, width=1.0)
         plt.xticks([-5, 0, 5])
         plt.yticks([-5, 0, 5])
-        plt.savefig("Setup_2D.png", dpi=600)
+        # plt.savefig("Setup_2D.png", dpi=600)
 
     elif idx == 5:
         C11 = np.array([-8, -4])
