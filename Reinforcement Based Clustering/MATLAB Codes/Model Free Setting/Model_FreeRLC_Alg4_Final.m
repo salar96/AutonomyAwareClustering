@@ -12,8 +12,8 @@ H_target = 250;                     % steps between target net updates
 Sz_miniBatch = 512;                 % size of the minibatch for both nets and Y
 buf_cap = 200000;                   % memory or replay capacity
 
-MaxInnerTheta = 1500;               % policy update loop max iterations
-MaxInnerY = 1500;                   % max iterations in Y update loop
+MaxInnerTheta = 150;               % policy update loop max iterations
+MaxInnerY = 150;                   % max iterations in Y update loop
 
 alpha = 0.005;                      % learning rate for Y SGD
 gamma = 0.001;                      % learning rate for policy SGD update
@@ -97,7 +97,7 @@ while T >= Tmin
         Par_memory{k} = memory;
     end
     
-    parfor l = 1 : K
+    for l = 1 : K
         for t = 1 : MaxInnerY
             idx = randi([1 buf_n]);
             i = Par_memory{l}.i(idx); j = Par_memory{l}.j(idx); k = Par_memory{l}.k(idx);
