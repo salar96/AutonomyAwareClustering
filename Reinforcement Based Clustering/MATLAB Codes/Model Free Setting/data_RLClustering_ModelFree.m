@@ -91,7 +91,7 @@ function [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx)
         rng('default');
         Centers = [C11; C21; C31; C41];
         
-        Np1 = 400; Np2 = 500; Np3 = 300; Np4 = 600;
+        Np1 = 500; Np2 = 500; Np3 = 500; Np4 = 500;
         count = 1;
         X = zeros((Np1+Np2+Np3+Np4), 2);
         C = zeros((Np1+Np2+Np3+Np4), 1);
