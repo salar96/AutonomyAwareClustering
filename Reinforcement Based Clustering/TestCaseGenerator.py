@@ -115,20 +115,20 @@ def data_RLClustering(idx):
         #         T_P[j, j, i] = 1.0  # Set p(k = j | j, i)
         ############################################## CASE 3
 
-        plt.scatter(
-            X[:, 0],
-            X[:, 1],
-            s=90,
-            c=[0.7] * N,
-            edgecolors=[0, 0.5, 0.5],
-            linewidths=1.5,
-        )
-        plt.xlim([-7, 7])
-        plt.ylim([-6, 6])
-        plt.gca().set_aspect("equal", "box")
-        plt.gca().tick_params(labelsize=25, width=1.0)
-        plt.xticks([-5, 0, 5])
-        plt.yticks([-5, 0, 5])
+        # plt.scatter(
+        #     X[:, 0],
+        #     X[:, 1],
+        #     s=90,
+        #     c=[0.7] * N,
+        #     edgecolors=[0, 0.5, 0.5],
+        #     linewidths=1.5,
+        # )
+        # plt.xlim([-7, 7])
+        # plt.ylim([-6, 6])
+        # plt.gca().set_aspect("equal", "box")
+        # plt.gca().tick_params(labelsize=25, width=1.0)
+        # plt.xticks([-5, 0, 5])
+        # plt.yticks([-5, 0, 5])
         # plt.savefig("Setup_2D.png", dpi=600)
 
     elif idx == 5:
