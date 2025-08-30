@@ -2,22 +2,26 @@
 tic;clear all; clc; rng(1);
 MaxInnerTheta = 200;                % policy update loop max iterations
 MaxInnerY = 200;                    % max iterations in Y update loop
-MaxInner = [500, 250];
+MaxInner = [500, 50];
 NN_update = 50;
 v = VideoWriter('CheckingMiniBatchSGDPerformanceRun2.mp4', 'Motion JPEG 2000');  % or 'Motion JPEG AVI'
-v.FrameRate = 10;  % frames per second
+v.FrameRate = 1;  % frames per second
 open(v);
-% ------------------ initialization -------------------
+% ------------------ initialization ------------------- 
 for inner = 1 : size(MaxInner,1)
     
     close all; clc; 
     idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
     [X,mu1,sig] = zscore(X);
+    col = zeros(K,3);
+    for k = 1 : K
+        col(k,:) = rand(1,3);
+    end
     
-    T = 10; Tmin = 0.01; tau1 = 0.98;    % annealing parameters
+    T = 0.5; Tmin = 0.001; tau1 = 0.9;    % annealing parameters
     eps = 1;                          % for epsilon greedy policy 
     Sz_miniBatch = 256;                 % size of the minibatch for both nets and Y
-    buf_cap = 500;                   % memory or replay capacity
+    buf_cap = 1000;                   % memory or replay capacity
     
     
     H_target = MaxInnerTheta/10;        % steps between target net updates
@@ -41,10 +45,10 @@ for inner = 1 : size(MaxInner,1)
     end
     init_trainInput = init_trainInput';
     init_trainOutput = init_trainOutput';
-    Y = repmat(Px'*X, [K,1]) + 0.2*randn(K,N);
+    Y = repmat(Px'*X, [K,1]) + 0.001*randn(K,N);
     
-    net = fitnet([10 10], 'trainlm');
-    net.performParam.regularization = 0.1;
+    net = fitnet([15 10], 'trainlm');
+    net.performParam.regularization = 0.15;
     net.performParam.normalization = 'standard';
     %net = feedforwardnet([10 10], 'trainlm');
     net.trainParam.epochs = 250; 
@@ -136,19 +140,39 @@ for inner = 1 : size(MaxInner,1)
             thetaPrev = thetaNow;
     
             % target network sunc
-            if mod(t, 100) == 0
-                net_target = net;
+            tau2 = 0.01;
+            
+            for ii = 1: numel(net.IW)
+                net_target.IW{ii} = tau2*net.IW{ii} + (1-tau2)*net_target.IW{ii};
             end
-            %disp(t);
+
+            for ii = 1 : numel(net.LW)
+                net_target.LW{ii} = tau2*net.LW{ii} + (1-tau2)*net_target.LW{ii};
+            end
+
+            for ii = 1 : numel(net.b)
+                net_target.b{ii} = tau2*net.b{ii} + (1-tau2)*net_target.b{ii};
+            end
+            % if mod(t, 100) == 0
+            %     net_target = net;
+            % end
+            % %disp(t);
             eps = eps*0.999;
             a = -0.1; b = 0.1;
             Y = Yold + (a+(b-a)*rand(K,2)); % Okay practically as long as T_P doesn't depend on Y
             %disp(Y);
         end
         Y = Yold;
+
         %Y = Y + 0.1*randn(K,N);
-        
-        lb2 = Y - [0.1,0.1]; ub2 = Y + [0.1,0.1];
+        for t = 1 : MaxInnerY
+            lb2 = Yold - [0.05,0.05]; ub2 = Yold + [0.05,0.05];
+            idx = randperm(buf_n,100);
+            [Y,Fval,~] = minimize_F_NoSGD(net,X(idx,:),Y,lb2,ub2,T);
+            disp(t);
+        end
+
+
         d_hat = zeros(M,K);
         for j1 = 1 : K
             temp = zeros(K,1); temp(j1) = 1;
@@ -157,21 +181,22 @@ for inner = 1 : size(MaxInner,1)
         d_hat = d_hat - min(d_hat,[],2);
         num = exp(-(1/T)*d_hat); den = sum(num,2);
         Pij = num./repmat(den,[1 size(num,2)]);
-        [Y,Fval,C] = minimize_F_NoSGD(net,X,Y,lb2,ub2,T);
         disp(Y);
         disp(Fval);
         disp(T);
         T = tau1*T;
         
-        [~, P_idx] = min(C,[],2);
-        col = zeros(K,3);
-        idx = cell(K,1);
-        for k = 1 : K
-            idx{k} = find(P_idx==k);
-            col(k,:) = rand(1,3);
-            scatter(X(idx{k},1),X(idx{k},2),90,'filled','MarkerEdgeColor','k',...
-                'MarkerFaceColor',col(k,:),'LineWidth',0.25); hold on;
-        end
+        %[~, ~] = min(C,[],2);
+        %d_hat = C;
+        %d_hat = d_hat - min(d_hat,[],2);
+        %num = exp(-(1/T)*d_hat); den = sum(num,2);
+        %Pij = num./repmat(den,[1 size(num,2)]);
+        %idx = cell(K,1);
+        col_all = Pij(:,1:K) * col(1:K,:);
+
+        % Plot all points at once
+        scatter(X(:,1), X(:,2), 90, col_all, 'filled', ...
+            'MarkerEdgeColor','k', 'LineWidth', 0.15); hold on;
         for k = 1 : K
             scatter(Y(k,1),Y(k,2),500,'p','MarkerEdgeColor', 'k', 'MarkerFaceColor', col(k,:), 'LineWidth',2);
         end
@@ -180,10 +205,11 @@ for inner = 1 : size(MaxInner,1)
         xticks([-2 0 2]); yticks([-2 0 2]); hold off;
         frame = getframe(gcf);       % gcf = current figure
         writeVideo(v, frame);
+
         count = count + 1;
         %Y = Y + 0.05*randn(K,N);
-        a = -0.025; b = 0.025;
-        Y = Y + (a+(b-a)*rand(K,2)); 
+        %a = -0.025; b = 0.025;
+        %Y = Y + (a+(b-a)*rand(K,2));
         net = init(net);
     end
     

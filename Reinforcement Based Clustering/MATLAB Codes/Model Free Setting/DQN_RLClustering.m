@@ -9,10 +9,10 @@ NN_update = 25;
 idx = 4; [X,K,T_P,M,N] = data_RLClustering_ModelFree(idx);
 [X,mu1,sig] = zscore(X);
 
-T = 0.001; Tmin = 0.001; tau = 0.98;    % annealing parameters
+T = 0.004; Tmin = 0.004; tau = 0.98;    % annealing parameters
 eps = 1;                          % for epsilon greedy policy 
 Sz_miniBatch = 256;                 % size of the minibatch for both nets and Y
-buf_cap = 200000;                   % memory or replay capacity
+buf_cap = 1000;                   % memory or replay capacity
 
 
 H_target = MaxInnerTheta/10;        % steps between target net updates
@@ -61,13 +61,14 @@ MaxInnerTheta = MaxInner(inner,1);
 MaxInnerY = MaxInner(inner,2);
 net = init(net);
 
-Y = [-2.1694, 1.7170;2.2185, -1.4463; -2.8815, -1.3287; 2.8277, 1.2291];
+%Y = [-2.1694, 1.7170;2.2185, -1.4463; -2.8815, -1.3287; 2.8277, 1.2291];
+Y = [-0.1765, 0.0891; 0.1889, 0.0027; 0.3867, -0.0785; -0.2351, -0.2803];
 %Y = [2.7705,1.1120; -2.5007, 0.9549; 2.5879, -1.3519; -2.7491, -0.6127];
 %Y = [-1.6011, 1.9002; 2.0521, -1.6652; -2.2850, -1.1925; 2.0983, 1.3845];
 %Y = [ 1.2128, -0.7145; -1.0914, -0.7233; -1.2498, 0.9193; 0.8504, 0.7206];
 %Y = [1.1187, 0.6744; -0.8040, -0.4969;-0.9109, 0.4710; 0.4315, 0.5992];
 %Y = [1.1317, -0.4651; -0.5619, -0.2726; -0.3765, 0.5878; -0.1744, 0.6137];
-Y = (Y - mu1)./repmat(sig,[K,1]);
+%Y = (Y - mu1)./repmat(sig,[K,1]);
 
 while T >= Tmin
     
@@ -140,9 +141,22 @@ while T >= Tmin
         thetaPrev = thetaNow;
 
         % target network sunc
-        if mod(t, 100) == 0
-            net_target = net;
-        end
+        tau2 = 0.01;
+            
+            for ii = 1: numel(net.IW)
+                net_target.IW{ii} = tau2*net.IW{ii} + (1-tau2)*net_target.IW{ii};
+            end
+
+            for ii = 1 : numel(net.LW)
+                net_target.LW{ii} = tau2*net.LW{ii} + (1-tau2)*net_target.LW{ii};
+            end
+
+            for ii = 1 : numel(net.b)
+                net_target.b{ii} = tau2*net.b{ii} + (1-tau2)*net_target.b{ii};
+            end
+        % if mod(t, 100) == 0
+        %     net_target = net;
+        % end
         disp(t);
         eps = eps*0.99;
     end

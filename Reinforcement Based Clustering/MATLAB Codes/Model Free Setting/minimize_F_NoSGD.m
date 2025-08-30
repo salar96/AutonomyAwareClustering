@@ -9,9 +9,10 @@ function [Y_opt, Fval, C] = minimize_F_NoSGD(net,X,Y0,lb,ub,T)
         F = -T*sum(-(1/T)*min(C,[],2) + log(sum(exp(-(1/T)*(C-min(C,[],2))),2)));
     end
 
-    opts = optimoptions('fmincon','Display','iter-detailed');
+    opts = optimoptions('fmincon','Display','iter-detailed','MaxIterations',1);
     
     [yopt, Fval] = fmincon(@objFun,Y0,[],[],[],[],lb,ub,[],opts);
+    %[yopt, Fval] = fminunc(@objFun,Y0,opts);
     Y_opt = reshape(yopt,K,N);
 end
 
