@@ -24,12 +24,12 @@ for inner = 1 : size(MaxInner,1)
     T = 0.5; Tmin = 0.0001; tau1 = 0.9;    % annealing parameters
     eps = 0.99;                          % for epsilon greedy policy 
     Sz_miniBatch = 256;                 % size of the minibatch for both nets and Y
-    buf_cap = 500;                   % memory or replay capacity
+    buf_cap = 1000;                   % memory or replay capacity
     
     
     H_target = MaxInnerTheta/10;        % steps between target net updates
     
-    alpha = 0.0005;                      % learning rate for Y SGD
+    alpha = 0.001;                      % learning rate for Y SGD
     mu = 0.9;
     gamma = 0.001;                      % learning rate for policy SGD update
     tau = 1;
@@ -52,8 +52,8 @@ for inner = 1 : size(MaxInner,1)
     init_trainOutput = init_trainOutput';
     Y = repmat(Px'*X, [K,1]) + 0.1*randn(K,N);
     
-    net = fitnet([15 10], 'trainlm');
-    net.performParam.regularization = 0.15;
+    net = fitnet([15 10], 'trainbr');
+    %net.performParam.regularization = 0.15;
     %net = feedforwardnet([10 10], 'trainlm');
     net.trainParam.epochs = 250; 
     net.trainParam.showWindow = false;
@@ -129,7 +129,7 @@ for inner = 1 : size(MaxInner,1)
                     miniBatchDataX(b,:) = [X(ii,:), temp', Y_S(:)'];
                     miniBatchDataY(b) = d_t;
                 end
-                net.trainParam.epochs = 100; net.divideFcn = 'dividetrain';
+                net.trainParam.epochs = 50; net.divideFcn = 'dividetrain';
                 [net,tr] = train(net, miniBatchDataX', miniBatchDataY');
             end
             thetaNow  = getwb(net);
@@ -142,9 +142,23 @@ for inner = 1 : size(MaxInner,1)
             thetaPrev = thetaNow;
     
             % target network sunc
-            if mod(t, 100) == 0
-                net_target = net;
+            tau2 = 0.01;
+            
+            for ii = 1: numel(net.IW)
+                net_target.IW{ii} = tau2*net.IW{ii} + (1-tau2)*net_target.IW{ii};
             end
+
+            for ii = 1 : numel(net.LW)
+                net_target.LW{ii} = tau2*net.LW{ii} + (1-tau2)*net_target.LW{ii};
+            end
+
+            for ii = 1 : numel(net.b)
+                net_target.b{ii} = tau2*net.b{ii} + (1-tau2)*net_target.b{ii};
+            end
+
+            %if mod(t, 100) == 0
+            %   net_target = net;
+            %end
             %disp(t);
             eps = eps*0.999;
             a = -0.1; b = 0.1;
@@ -190,15 +204,15 @@ for inner = 1 : size(MaxInner,1)
                 idx_l = find(k_idx == l);
                 loc_cal = [(1:length(i_idx))', j_idx];
                 Pij_cal = Pij(sub2ind(size(Pij), loc_cal(:,1), loc_cal(:,2)));
-                Y_parNest = Y_par{l} + mu* V_t;
+                %Y_parNest = Y_par{l} + mu* V_t;
                 %normG = sum(Pij_cal.*(Y_par{l} - X_par{l}(i_idx,:)));
-                normG = (1/length(idx_l))*sum(Pij_cal.*(Y_parNest - X_par{l}(i_idx,:)));
-                V_t = mu*V_t - alpha*normG/(max(1,norm(normG)/tau));
-                Y_par{l} = Y_par{l} + V_t;
-                disp(norm(V_t));
-                %Grad = (1/length(idx_l))*sum(Pij_cal.*(Y_par{l} - X_par{l}(i_idx,:)));
-                %Y_par{l} = Y_par{l} - alpha*Grad/norm(Grad);
-                %disp(norm(alpha*(1/length(idx_l))*sum(Pij_cal.*(Y_par{l} - X_par{l}(i_idx,:)))));
+                %normG = (1/length(idx_l))*sum(Pij_cal.*(Y_parNest - X_par{l}(i_idx,:)));
+                %V_t = mu*V_t - alpha*normG/(max(1,norm(normG)/tau));
+                %Y_par{l} = Y_par{l} + V_t;
+                %disp(norm(V_t));
+                Grad = (1/length(idx_l))*sum(Pij_cal.*(Y_par{l} - X_par{l}(i_idx,:)));
+                Y_par{l} = Y_par{l} - alpha*Grad/norm(Grad);
+                disp(norm(alpha*(1/length(idx_l))*sum(Pij_cal.*(Y_par{l} - X_par{l}(i_idx,:)))));
                  
                 if norm(Y_old - Y_par{l})/(norm(Y_par{l}) + 1e-12) < epsY
                     count_Y(l) = count_Y(l) + 1;
