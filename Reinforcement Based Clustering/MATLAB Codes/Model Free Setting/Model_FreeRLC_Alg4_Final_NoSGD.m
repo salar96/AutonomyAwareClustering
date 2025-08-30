@@ -168,7 +168,7 @@ for inner = 1 : size(MaxInner,1)
         for t = 1 : MaxInnerY
             lb2 = Yold - [0.05,0.05]; ub2 = Yold + [0.05,0.05];
             idx = randperm(buf_n,100);
-            [Y,Fval,~] = minimize_F_NoSGD(net,X(idx,:),Y,lb2,ub2,T);
+            [Y,Fval,~] = minimize_F_NoSGD(net_target,X(idx,:),Y,lb2,ub2,T);
             disp(t);
         end
 
