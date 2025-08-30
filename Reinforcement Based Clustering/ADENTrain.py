@@ -22,7 +22,6 @@ def TrainDbar(
         model: PyTorch model (ADEN).
         X: Tensor of data points, shape (N, input_dim).
         Y: Tensor of cluster centroids, shape (M, input_dim).
-        d_t: Function computing distance between two points.
         device: torch.device.
         epochs: Number of training epochs.
         batch_size: Number of batches.
@@ -40,7 +39,6 @@ def TrainDbar(
 
     # expand Y to batch dimension
     Y_batches = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
-
 
     for param in model.parameters():
         param.requires_grad = True
@@ -134,10 +132,20 @@ def TrainDbar(
         mse_loss.backward()
         optimizer.step()
 
-def trainY(model, X, Y, device, 
-           lr=1e-3, weight_decay=1e-5, 
-           beta=1.0, tol=1e-6, max_epochs=10000, 
-           batch_size=None, verbose=True):
+
+def trainY(
+    model,
+    X,
+    Y,
+    device,
+    lr=1e-3,
+    weight_decay=1e-5,
+    beta=1.0,
+    tol=1e-6,
+    max_epochs=10000,
+    batch_size=None,
+    verbose=True,
+):
     """
     Optimize cluster centers Y while keeping model fixed.
     Uses mini-batches of X if batch_size is specified.
@@ -187,7 +195,7 @@ def trainY(model, X, Y, device,
             X_batch = X[perm[start:end]].to(device).float()  # (B, input_dim)
 
             # Compute distances via fixed model
-            
+
             d_s = model(X_batch.unsqueeze(0), y_opt.unsqueeze(0))[0]  # (B, M)
 
             # Free energy contribution for this batch
@@ -208,7 +216,10 @@ def trainY(model, X, Y, device,
             print(f"[trainY] Epoch {epoch}, F: {F_epoch:.6f}")
 
         # Convergence check
-        if torch.norm(F_old - torch.tensor(F_epoch, device=device)) / torch.norm(F_old) < tol:
+        if (
+            torch.norm(F_old - torch.tensor(F_epoch, device=device)) / torch.norm(F_old)
+            < tol
+        ):
             if verbose:
                 print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.6f}")
             break
@@ -216,3 +227,93 @@ def trainY(model, X, Y, device,
         F_old = torch.tensor(F_epoch, device=device)
 
     return y_opt.detach(), history
+
+def TrainAnneal(
+    model,
+    X,
+    Y,
+    device,
+    # TrainDbar hyperparameters
+    epochs_dbar=1000,
+    batch_size_dbar=32,
+    num_samples_in_batch_dbar=128,
+    lr_dbar=1e-4,
+    weight_decay_dbar=1e-5,
+    gamma_dbar=1000.0,
+    probs_dbar=None,
+    # trainY hyperparameters
+    epochs_train_y=10000,
+    batch_size_train_y=None,
+    lr_train_y=1e-3,
+    weight_decay_train_y=1e-5,
+    tol_train_y=1e-6,
+    # annealing schedule
+    beta_init=1e-3,
+    beta_final=10.0,
+    beta_growth_rate=10.0,
+    perturbation_std=0.01,
+):
+    """
+    Run the annealing loop alternating TrainDbar and trainY.
+
+    Args:
+        model: ADEN model.
+        X: Tensor of data points, shape (N, input_dim).
+        Y: Tensor of initial cluster centers, shape (M, input_dim).
+        device: torch.device.
+        epochs_dbar, batch_size_dbar, ... : hyperparameters for TrainDbar.
+        epochs_train_y, batch_size_train_y, ... : hyperparameters for trainY.
+        beta_init, beta_final, beta_growth_rate: annealing schedule.
+        perturbation_std: std of Gaussian noise added to Y each iteration.
+        probs_dbar: optional (M, M, N) probability tensor for TrainDbar.
+    Returns:
+        Y_final: optimized cluster centers
+        history_y: list of free energy histories from each trainY call
+    """
+
+    M, input_dim = Y.shape
+    beta = beta_init
+    history_y_all = []
+
+    while beta < beta_final:
+        print(f"\n=== Annealing step: Beta = {beta:.4f} ===")
+
+        # Perturb Y
+        Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
+
+        # --- TrainDbar ---
+        TrainDbar(
+            model,
+            X,
+            Y,
+            device,
+            epochs=epochs_dbar,
+            batch_size=batch_size_dbar,
+            num_samples_in_batch=num_samples_in_batch_dbar,
+            lr=lr_dbar,
+            weight_decay=weight_decay_dbar,
+            gamma=gamma_dbar,
+            probs=probs_dbar,
+        )
+
+        # --- trainY ---
+        Y, history_y = trainY(
+            model,
+            X,
+            Y,
+            device,
+            lr=lr_train_y,
+            weight_decay=weight_decay_train_y,
+            beta=beta,
+            tol=tol_train_y,
+            max_epochs=epochs_train_y,
+            batch_size=batch_size_train_y,
+            verbose=True,
+        )
+
+        history_y_all.append(history_y)
+
+        # Increase beta
+        beta *= beta_growth_rate
+
+    return Y, history_y_all
