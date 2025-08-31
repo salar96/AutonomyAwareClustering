@@ -12,8 +12,10 @@ def TrainDbar(
     num_samples_in_batch=128,
     lr=1e-4,
     weight_decay=1e-5,
+    tol=1e-6,
     gamma=1000.0,
     probs=None,
+    verbose=False,
 ):
     """
     Train ADEN model to learn expected distances.
@@ -28,6 +30,7 @@ def TrainDbar(
         num_samples_in_batch: Samples per batch.
         lr: Learning rate.
         weight_decay: Optimizer weight decay.
+        tol: Tolerance for early stopping.
         gamma: Transition probability scaling factor (used only if probs=None).
         probs: Optional tensor of shape (M, M, N), probabilities p(k | j, i).
     """
@@ -51,7 +54,7 @@ def TrainDbar(
     else:
         # ensure correct dtype/device
         probs = probs.to(device).float()
-
+    prev_mse_loss = float("inf")
     for epoch in range(epochs):
         # sample batches from X
         X_batches = torch.zeros(
@@ -92,8 +95,8 @@ def TrainDbar(
             B, S = batch_size, num_samples_in_batch
 
             # Expand batch and sample indices
-            b_idx = torch.arange(B, device=device).view(B, 1, 1).expand(B, S, M)
-            s_idx = torch.arange(S, device=device).view(1, S, 1).expand(B, S, M)
+            # b_idx = torch.arange(B, device=device).view(B, 1, 1).expand(B, S, M)
+            # s_idx = torch.arange(S, device=device).view(1, S, 1).expand(B, S, M)
             m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
 
             # Gather i (data index) and j (chosen cluster)
@@ -125,12 +128,18 @@ def TrainDbar(
         # masked MSE loss
         mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
 
-        if epoch % 100 == 0:
-            print(f"Epoch {epoch}, MSE Loss: {mse_loss.item()}")
+        if epoch % 100 == 0 and verbose:
+            print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3f}")
 
         optimizer.zero_grad()
         mse_loss.backward()
         optimizer.step()
+        # stopping criterion based on change of loss
+        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / prev_mse_loss < tol:
+            if verbose:
+                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3f}")
+            break
+        prev_mse_loss = mse_loss.item()
 
 
 def trainY(
@@ -215,7 +224,7 @@ def trainY(
 
         # Logging
         if verbose and epoch % 100 == 0:
-            print(f"[trainY] Epoch {epoch}, F: {F_epoch:.6f}")
+            print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3f}")
 
         # Convergence check
         if (
@@ -223,7 +232,7 @@ def trainY(
             < tol
         ):
             if verbose:
-                print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.6f}")
+                print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.3f}")
             break
 
         F_old = torch.tensor(F_epoch, device=device)
@@ -242,6 +251,7 @@ def TrainAnneal(
     num_samples_in_batch_dbar=128,
     lr_dbar=1e-4,
     weight_decay_dbar=1e-5,
+    tol_train_dbar=1e-6,
     gamma_dbar=1000.0,
     probs_dbar=None,
     # trainY hyperparameters
@@ -278,7 +288,7 @@ def TrainAnneal(
     beta = beta_init
     history_y_all = []
 
-    while beta < beta_final:
+    while beta <= beta_final:
         print(f"\n=== Annealing step: Beta = {beta:.4f} ===")
 
         # Perturb Y
@@ -295,8 +305,10 @@ def TrainAnneal(
             num_samples_in_batch=num_samples_in_batch_dbar,
             lr=lr_dbar,
             weight_decay=weight_decay_dbar,
+            tol=tol_train_dbar,
             gamma=gamma_dbar,
             probs=probs_dbar,
+            verbose=True
         )
 
         # --- trainY ---
