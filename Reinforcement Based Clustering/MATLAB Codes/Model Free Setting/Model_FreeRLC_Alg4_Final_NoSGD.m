@@ -2,7 +2,7 @@
 tic;clear all; clc; rng(1);
 MaxInnerTheta = 200;                % policy update loop max iterations
 MaxInnerY = 200;                    % max iterations in Y update loop
-MaxInner = [500, 50];
+MaxInner = [500, 100];
 NN_update = 50;
 v = VideoWriter('CheckingMiniBatchSGDPerformanceRun2.mp4', 'Motion JPEG 2000');  % or 'Motion JPEG AVI'
 v.FrameRate = 1;  % frames per second
@@ -18,7 +18,7 @@ for inner = 1 : size(MaxInner,1)
         col(k,:) = rand(1,3);
     end
     
-    T = 0.5; Tmin = 0.001; tau1 = 0.9;    % annealing parameters
+    T = 0.5; Tmin = 0.0001; tau1 = 0.9;    % annealing parameters
     eps = 1;                          % for epsilon greedy policy 
     Sz_miniBatch = 256;                 % size of the minibatch for both nets and Y
     buf_cap = 1000;                   % memory or replay capacity
@@ -26,6 +26,7 @@ for inner = 1 : size(MaxInner,1)
     
     H_target = MaxInnerTheta/10;        % steps between target net updates
     mu = 0.9;
+    alpha = 0.0001;
     gamma = 0.001;                      % learning rate for policy SGD update
     tau = 1;
     
@@ -47,8 +48,8 @@ for inner = 1 : size(MaxInner,1)
     init_trainOutput = init_trainOutput';
     Y = repmat(Px'*X, [K,1]) + 0.001*randn(K,N);
     
-    net = fitnet([15 10], 'trainlm');
-    net.performParam.regularization = 0.15;
+    net = fitnet([30 20 10], 'trainlm');
+    net.performParam.regularization = 0.4;
     net.performParam.normalization = 'standard';
     %net = feedforwardnet([10 10], 'trainlm');
     net.trainParam.epochs = 250; 
@@ -140,7 +141,7 @@ for inner = 1 : size(MaxInner,1)
             thetaPrev = thetaNow;
     
             % target network sunc
-            tau2 = 0.01;
+            tau2 = 0.005;
             
             for ii = 1: numel(net.IW)
                 net_target.IW{ii} = tau2*net.IW{ii} + (1-tau2)*net_target.IW{ii};
@@ -160,18 +161,61 @@ for inner = 1 : size(MaxInner,1)
             eps = eps*0.999;
             a = -0.1; b = 0.1;
             Y = Yold + (a+(b-a)*rand(K,2)); % Okay practically as long as T_P doesn't depend on Y
-            %disp(Y);
+            %disp(t);
         end
         Y = Yold;
 
         %Y = Y + 0.1*randn(K,N);
-        for t = 1 : MaxInnerY
-            lb2 = Yold - [0.05,0.05]; ub2 = Yold + [0.05,0.05];
-            idx = randperm(buf_n,100);
-            [Y,Fval,~] = minimize_F_NoSGD(net_target,X(idx,:),Y,lb2,ub2,T);
-            disp(t);
+        net_target_ij = cell(K,1); Par_memory = cell(K,1); 
+        X_par = cell(K,1); Y_par = cell(K,1); net_Y = cell(K,1);
+        comp_Pij_Y = cell(K,1);
+        for k = 1 : K
+            net_target_ij{k} = net_target; X_par{k} = X; Y_par{k} = Y(k,:);
+            Par_memory{k} = memory; net_Y{k} = net; 
+            comp_Pij_Y{k} = Y;
+        end
+        for l = 1 : K
+            Y_old = Y_par{l};
+            V_t = zeros(size(Y_old));
+            for t = 1 : MaxInnerY
+                %idx = randi([1 buf_n],100,1);
+                if buf_n < 100
+                    idx = randperm(buf_n,buf_n);
+                else
+                    idx = randperm(buf_n,100);
+                end
+                i_idx = Par_memory{l}.i(idx); j_idx = Par_memory{l}.j(idx); k_idx = Par_memory{l}.k(idx);
+                idx_l = find(k_idx == l);
+                i_idx = i_idx(idx_l); j_idx = j_idx(idx_l); k_idx = k_idx(idx_l);
+
+                d_hat = zeros(length(i_idx),K);
+                for j1 = 1 : K
+                    temp = zeros(K,1); temp(j1) = 1;
+                    d_hat(:,j1) = net_target_ij{l}([X_par{l}(i_idx,:),repmat(temp',[length(i_idx),1])...
+                                    , repmat(Y(:)',[length(i_idx),1])]')';
+                end
+                d_hat = d_hat - min(d_hat,[],2);
+                num = exp(-(1/T)*d_hat); den = sum(num,2);
+                Pij = num./repmat(den,[1 size(num,2)]);
+                idx_l = find(k_idx == l);
+                loc_cal = [(1:length(i_idx))', j_idx];
+                Pij_cal = Pij(sub2ind(size(Pij), loc_cal(:,1), loc_cal(:,2)));
+                
+                Y_parNest = Y_par{l} + mu* V_t;
+                G = grad_fitnet2(net_target_ij{l},X_par{l}(i_idx,:),j_idx,Y,Y_parNest,l);
+
+                normG = (1/length(idx_l))*sum(Pij_cal.*G);
+                V_t = mu*V_t - alpha*normG/(max(1,norm(normG)/tau));
+                Y_par{l} = Y_par{l} + V_t;
+
+                %Y_par{l} = Y_par{l} - alpha*normG/norm(normG);
+                %disp(norm(V_t));
+            end
         end
 
+        for j = 1 : K
+            Y(j,:) = Y_par{j};
+        end
 
         d_hat = zeros(M,K);
         for j1 = 1 : K
@@ -182,16 +226,9 @@ for inner = 1 : size(MaxInner,1)
         num = exp(-(1/T)*d_hat); den = sum(num,2);
         Pij = num./repmat(den,[1 size(num,2)]);
         disp(Y);
-        disp(Fval);
         disp(T);
         T = tau1*T;
-        
-        %[~, ~] = min(C,[],2);
-        %d_hat = C;
-        %d_hat = d_hat - min(d_hat,[],2);
-        %num = exp(-(1/T)*d_hat); den = sum(num,2);
-        %Pij = num./repmat(den,[1 size(num,2)]);
-        %idx = cell(K,1);
+
         col_all = Pij(:,1:K) * col(1:K,:);
 
         % Plot all points at once
@@ -211,6 +248,11 @@ for inner = 1 : size(MaxInner,1)
         %a = -0.025; b = 0.025;
         %Y = Y + (a+(b-a)*rand(K,2));
         net = init(net);
+
+        %flag = nn_check(net_target,X_par{l}(i_idx,:),Y,j_idx);
+        %flag2 = nn_grad_check(net_target,X_par{l}(i_idx,:),Y,j_idx,l);
+        check_grad_Yl_fitnet(net_target, X_par{l}(i_idx,:), j_idx, Y, l);
+
     end
     
 

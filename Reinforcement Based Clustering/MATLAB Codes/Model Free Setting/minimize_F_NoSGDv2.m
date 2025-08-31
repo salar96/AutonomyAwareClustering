@@ -17,28 +17,19 @@ function [Y_opt, Fval, C] = minimize_F_NoSGDv2(net, X, Y0, lb, ub, T)
         F = -T * sum( -(1/T)*min(C_local,[],2) + log(sum(exp(-(1/T)*Cshift), 2)) );
         F = double(F);                               % <-- critical for fmincon
     end
-
-<<<<<<< HEAD
     opts = optimoptions('fmincon','Display','iter-detailed','MaxIterations',1);
     
     [yopt, Fval] = fmincon(@objFun,Y0,[],[],[],[],lb,ub,[],opts);
     %[yopt, Fval] = fminunc(@objFun,Y0,opts);
     Y_opt = reshape(yopt,K,N);
-=======
-    opts = optimoptions('fmincon', 'Display','iter-detailed');
-
-    [yopt, Fval] = fmincon(@objFun, Y0, [], [], [], [], lb, ub, [], opts);
-    Y_opt = reshape(yopt, K, N);
-
     % Return C at optimum (double)
     C = pairwise_cost_matrix(net, X, Y_opt);
->>>>>>> 82085b0 (files and results)
 end
 
 function C = pairwise_cost_matrix(net, X, Y)
 % C(i,j) = predicted cost for x_i vs centroid j
 % Build inputs in single for the network, but return DOUBLE to the optimizer.
-    [M, N] = size(X);
+    [M, ~] = size(X);
     K      = size(Y,1);
 
     % Big input batch: [X_tile, onehot(j), vec(Y)] for all (i,j)
