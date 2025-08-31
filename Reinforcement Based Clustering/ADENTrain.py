@@ -198,9 +198,11 @@ def trainY(
 
             d_s = model(X_batch.unsqueeze(0), y_opt.unsqueeze(0))[0]  # (B, M)
 
+            d_mins = torch.min(d_s, dim=-1, keepdim=True).values  # (B, 1)
             # Free energy contribution for this batch
             F_batch = -(1.0 / beta) * torch.sum(
-                torch.log(torch.sum(torch.exp(-beta * d_s), dim=-1))
+                torch.log(torch.sum(torch.exp(-beta * (d_s - d_mins)), dim=-1))
+                - beta * d_mins.squeeze(-1)
             )
 
             F_batch.backward(retain_graph=True if end < N else False)
@@ -227,6 +229,7 @@ def trainY(
         F_old = torch.tensor(F_epoch, device=device)
 
     return y_opt.detach(), history
+
 
 def TrainAnneal(
     model,
