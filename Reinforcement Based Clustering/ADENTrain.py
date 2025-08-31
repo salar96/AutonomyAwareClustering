@@ -129,7 +129,7 @@ def TrainDbar(
         mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
 
         if epoch % 100 == 0 and verbose:
-            print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3f}")
+            print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
 
         optimizer.zero_grad()
         mse_loss.backward()
@@ -137,7 +137,7 @@ def TrainDbar(
         # stopping criterion based on change of loss
         if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / prev_mse_loss < tol:
             if verbose:
-                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3f}")
+                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
             break
         prev_mse_loss = mse_loss.item()
 
@@ -224,7 +224,7 @@ def trainY(
 
         # Logging
         if verbose and epoch % 100 == 0:
-            print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3f}")
+            print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3e}")
 
         # Convergence check
         if (
@@ -232,7 +232,7 @@ def trainY(
             < tol
         ):
             if verbose:
-                print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.3f}")
+                print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.3e}")
             break
 
         F_old = torch.tensor(F_epoch, device=device)
@@ -330,5 +330,5 @@ def TrainAnneal(
 
         # Increase beta
         beta *= beta_growth_rate
-
+    
     return Y, history_y_all

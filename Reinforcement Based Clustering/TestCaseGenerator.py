@@ -101,18 +101,18 @@ def data_RLClustering(idx):
         K = 4
         N, d = X.shape
         ############################################## CASE 1
-        # T_P = np.zeros((K, K, N))
-        # for j in range(K):
-        #     for k in range(K):
-        #         if j != k:
-        #             T_P[k, j, :] = 1 / (K * (K - 1))
-        #     T_P[j, j, :] = (K - 1) / K
+        T_P = np.zeros((K, K, N))
+        for j in range(K):
+            for k in range(K):
+                if j != k:
+                    T_P[k, j, :] = 1 / (K * (K - 1))
+            T_P[j, j, :] = (K - 1) / K
         ############################################## CASE 2
-        T_P = np.full((K, K, N), 0.0 / (K - 1))  # Default: uniform for k ≠ j
+        # T_P = np.full((K, K, N), 0.0 / (K - 1))  # Default: uniform for k ≠ j
 
-        for i in range(N):
-            for j in range(K):
-                T_P[j, j, i] = 1.0  # Set p(k = j | j, i)
+        # for i in range(N):
+        #     for j in range(K):
+        #         T_P[j, j, i] = 1.0  # Set p(k = j | j, i)
         ############################################## CASE 3
 
         # plt.scatter(
