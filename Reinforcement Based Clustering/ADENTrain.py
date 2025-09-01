@@ -128,17 +128,28 @@ def TrainDbar(
         # masked MSE loss
         mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
 
-        if epoch % 100 == 0 and verbose:
+        if epoch % 500 == 0 and verbose:
             print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
 
         optimizer.zero_grad()
         mse_loss.backward()
         optimizer.step()
         # stopping criterion based on change of loss
-        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / prev_mse_loss < tol:
-            if verbose:
-                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
-            break
+        # For early stopping, we need to track a moving average of the loss
+        if epoch == 0:
+            moving_avg_loss = mse_loss.item()
+        else:
+            # Use exponential moving average to smooth out batch randomness
+            alpha = 0.1  # Smoothing factor
+            moving_avg_loss = alpha * mse_loss.item() + (1 - alpha) * moving_avg_loss
+            
+            # Check convergence against the moving average
+            if epoch > 100 and abs(moving_avg_loss - prev_moving_avg_loss) / prev_moving_avg_loss < tol:
+                if verbose:
+                    print(f"Converged at epoch {epoch}, Moving Avg Loss: {moving_avg_loss:.3e}")
+                break
+        
+        prev_moving_avg_loss = moving_avg_loss
         prev_mse_loss = mse_loss.item()
 
 
@@ -223,7 +234,7 @@ def trainY(
         history.append(F_epoch)
 
         # Logging
-        if verbose and epoch % 100 == 0:
+        if verbose and epoch % 500 == 0:
             print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3e}")
 
         # Convergence check
