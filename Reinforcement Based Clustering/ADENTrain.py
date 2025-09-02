@@ -128,7 +128,7 @@ def TrainDbar(
         # masked MSE loss
         mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
 
-        if epoch % 100 == 0 and verbose:
+        if epoch % 1000 == 0 and verbose:
             print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
 
         optimizer.zero_grad()
@@ -223,7 +223,7 @@ def trainY(
         history.append(F_epoch)
 
         # Logging
-        if verbose and epoch % 100 == 0:
+        if verbose and epoch % 1000 == 0:
             print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3e}")
 
         # Convergence check
@@ -287,7 +287,7 @@ def TrainAnneal(
     M, input_dim = Y.shape
     beta = beta_init
     history_y_all = []
-
+    history_pi_all = []
     while beta <= beta_final:
         print(f"\n=== Annealing step: Beta = {beta:.4f} ===")
 
@@ -325,10 +325,13 @@ def TrainAnneal(
             batch_size=batch_size_train_y,
             verbose=True,
         )
-
-        history_y_all.append(history_y)
-
+        with torch.no_grad():
+            pi = (
+                torch.argmin(model(X.unsqueeze(0), Y.unsqueeze(0))[0], dim=-1).cpu().numpy()
+            )  # (N, M)
+        history_y_all.append(Y.clone().detach().cpu().numpy())
+        history_pi_all.append(pi)
         # Increase beta
         beta *= beta_growth_rate
-    
-    return Y, history_y_all
+
+    return Y, history_y_all, history_pi_all
