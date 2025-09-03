@@ -333,5 +333,6 @@ def TrainAnneal(
         history_pi_all.append(pi)
         # Increase beta
         beta *= beta_growth_rate
+        model.reset_weights()  # Reset model weights for each temperature
 
     return Y, history_y_all, history_pi_all

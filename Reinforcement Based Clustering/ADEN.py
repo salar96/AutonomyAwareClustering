@@ -109,10 +109,10 @@ class ADEN(nn.Module):
     Adaptive Distance Estimation Network (ADEN)
     A neural network architecture designed to learn adaptive distance metrics for clustering tasks.
     ADEN enhances traditional distance-based clustering by learning context-aware distance functions
-    that adapt to the underlying data structure.
+    that adapt to the underlying environments. Given the cluster centers
 
     Architecture Overview:
-    1. Input projections map data points and cluster centers to a common embedding space
+    1. Input projections map data points and cluster centers to an embedding space
     2. Multiple adaptive distance blocks process the embeddings using self-attention
     3. The final distance computation combines Squared Euclidean distance with learned adaptations
     Parameters:
@@ -201,6 +201,14 @@ class ADEN(nn.Module):
         base_distances = 0.5 * torch.sum(diff**2, dim=-1)  # (batch_size, N, M)
 
         return base_distances
+
+    def reset_weights(self):
+        """Reset all model weights to Xavier initialization, including attention weights"""
+        for module in self.modules():  # modules() traverses all modules recursively
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
 
     def forward(
         self, data_points: torch.Tensor, cluster_centers: torch.Tensor
