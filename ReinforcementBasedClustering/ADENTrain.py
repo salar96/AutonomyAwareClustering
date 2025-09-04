@@ -95,8 +95,7 @@ def TrainDbar(
             B, S = batch_size, num_samples_in_batch
 
             # Expand batch and sample indices
-            # b_idx = torch.arange(B, device=device).view(B, 1, 1).expand(B, S, M)
-            # s_idx = torch.arange(S, device=device).view(1, S, 1).expand(B, S, M)
+
             m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
 
             # Gather i (data index) and j (chosen cluster)
@@ -140,6 +139,126 @@ def TrainDbar(
                 print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
             break
         prev_mse_loss = mse_loss.item()
+
+
+def TrainDbar_mc(
+    model,
+    X,
+    Y,
+    device,
+    epochs=1000,
+    batch_size=32,
+    num_samples_in_batch=128,
+    mc_samples=16,   # NEW: number of Monte Carlo samples per datapoint
+    lr=1e-4,
+    weight_decay=1e-5,
+    tol=1e-6,
+    gamma=1000.0,
+    probs=None,
+    verbose=False,
+):
+    """
+    Train ADEN model to learn expected distances using Monte Carlo averaging.
+
+    Args:
+        mc_samples: Number of Monte Carlo samples per datapoint.
+    """
+
+    N, input_dim = X.shape
+    M = Y.shape[0]
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    Y_batches = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
+
+    for param in model.parameters():
+        param.requires_grad = True
+    model.train()
+
+    if probs is None:
+        transition_probs = torch.exp(-gamma * torch.cdist(Y, Y, p=2) ** 2)  # (M, M)
+        transition_probs = transition_probs / transition_probs.sum(dim=-1, keepdim=True)
+    else:
+        probs = probs.to(device).float()
+
+    prev_mse_loss = float("inf")
+    for epoch in range(epochs + 1):
+        # sample batches from X
+        X_batches = torch.zeros(
+            batch_size,
+            num_samples_in_batch,
+            input_dim,
+            device=device,
+            dtype=torch.float32,
+        )
+        batch_indices_all = []
+        for i in range(batch_size):
+            batch_indices = torch.randint(0, N, (num_samples_in_batch,), device=device)
+            X_batches[i] = X[batch_indices]
+            batch_indices_all.append(batch_indices)
+        batch_indices_all = torch.stack(batch_indices_all, dim=0)
+
+        # forward pass
+        predicted_distances = model(X_batches, Y_batches)  # (B, S, M)
+
+        # closest cluster index for each point
+        idx = torch.argmin(predicted_distances, dim=-1)  # (B, S)
+
+        mask = torch.zeros_like(predicted_distances, dtype=torch.bool)
+        mask.scatter_(2, idx.unsqueeze(2), 1)
+
+        # --- Transition probabilities ---
+        if probs is None:
+            prob_matrix = transition_probs[idx]  # (B, S, M)
+        else:
+            B, S = batch_size, num_samples_in_batch
+            m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
+            i_idx = batch_indices_all.unsqueeze(-1).expand(B, S, M)
+            j_idx = idx.unsqueeze(-1).expand(B, S, M)
+            prob_matrix = probs[m_idx, j_idx, i_idx]  # (B, S, M)
+
+        # --- Monte Carlo averaging ---
+        # (B*S, M)
+        flat_probs = prob_matrix.view(-1, M)
+
+        # draw mc_samples samples for each datapoint
+        realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
+        realized_clusters = realized_clusters.view(batch_size, num_samples_in_batch, mc_samples)
+
+        # gather centroids
+        realized_Y = Y_batches.unsqueeze(2).expand(batch_size, M, mc_samples, input_dim)
+        chosen_Y = realized_Y.gather(
+            1,
+            realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
+        )  # (B, S, mc, input_dim)
+
+        # compute distances and average
+        distances = utils.d_t(
+            X_batches.unsqueeze(2).expand(-1, -1, mc_samples, -1),  # (B, S, mc, dim)
+            chosen_Y
+        )  # (B, S, mc)
+        mean_distances = distances.mean(dim=-1)  # (B, S)
+
+        # fill into D only at [batch, sample, idx]
+        D = torch.zeros(batch_size, num_samples_in_batch, M, device=device)
+        D.scatter_(2, idx.unsqueeze(-1), mean_distances.unsqueeze(-1))
+
+        # masked MSE loss
+        mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
+
+        if epoch % 1000 == 0 and verbose:
+            print(f"[trainDbar] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+
+        optimizer.zero_grad()
+        mse_loss.backward()
+        optimizer.step()
+
+        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / prev_mse_loss < tol:
+            if verbose:
+                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+            break
+        prev_mse_loss = mse_loss.item()
+
 
 
 def trainY(
@@ -194,7 +313,7 @@ def trainY(
     F_old = torch.tensor(float("inf"), device=device)
     history = []
 
-    for epoch in range(max_epochs):
+    for epoch in range(max_epochs+1):
         # Shuffle X for batching
         perm = torch.randperm(N, device=device)
         F_epoch = 0.0
@@ -295,7 +414,7 @@ def TrainAnneal(
         Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
 
         # --- TrainDbar ---
-        TrainDbar(
+        TrainDbar_mc(
             model,
             X,
             Y,
@@ -333,6 +452,6 @@ def TrainAnneal(
         history_pi_all.append(pi)
         # Increase beta
         beta *= beta_growth_rate
-        model.reset_weights()  # Reset model weights for each temperature
+        # model.reset_weights()  # Reset model weights for each temperature
 
     return Y, history_y_all, history_pi_all
