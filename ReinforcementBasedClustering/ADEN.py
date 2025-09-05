@@ -250,8 +250,8 @@ class ADEN(nn.Module):
         base_distances = self.compute_base_distances(data_points, cluster_centers)
 
         # Final adaptive distances
-        # adaptive_distances = base_distances + self.temperature * distance_deviations
-        adaptive_distances = base_distances + distance_deviations
+        adaptive_distances = base_distances + self.temperature * distance_deviations
+        # adaptive_distances = base_distances + distance_deviations
         # Ensure non-negative distances
         adaptive_distances = F.relu(adaptive_distances)
 

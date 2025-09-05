@@ -260,6 +260,134 @@ def TrainDbar_mc(
         prev_mse_loss = mse_loss.item()
 
 
+def TrainDbar_RunningAvg(
+    model,
+    X,
+    Y,
+    device,
+    epochs=1000,
+    batch_size=32,
+    num_samples_in_batch=128,
+    lr=1e-4,
+    weight_decay=1e-5,
+    tol=1e-6,
+    gamma=1000.0,
+    alpha=0.1,   # smoothing factor for EMA
+    probs=None,
+    verbose=False,
+):
+    """
+    Train ADEN model to learn expected distances via running average targets.
+    """
+
+    N, input_dim = X.shape
+    M = Y.shape[0]
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # expand Y to batch dimension
+    Y_batches = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
+
+    for param in model.parameters():
+        param.requires_grad = True
+    model.train()
+
+    # running average estimates of expected distances (N, M)
+    running_D = torch.zeros(N, M, device=device)
+
+    # default transition probs (M, M)
+    if probs is None:
+        transition_probs = torch.exp(-gamma * torch.cdist(Y, Y, p=2) ** 2)  # (M, M)
+        transition_probs = transition_probs / transition_probs.sum(dim=-1, keepdim=True)
+    else:
+        probs = probs.to(device).float()
+
+    prev_mse_loss = float("inf")
+    for epoch in range(epochs):
+        # sample batches from X
+        X_batches = torch.zeros(
+            batch_size, num_samples_in_batch, input_dim,
+            device=device, dtype=torch.float32,
+        )
+        batch_indices_all = []
+        for i in range(batch_size):
+            batch_indices = torch.randint(0, N, (num_samples_in_batch,), device=device)
+            X_batches[i] = X[batch_indices]
+            batch_indices_all.append(batch_indices)
+        batch_indices_all = torch.stack(batch_indices_all, dim=0)  # (B, S)
+
+        # forward pass
+        predicted_distances = model(X_batches, Y_batches)  # (B, S, M)
+
+        # closest cluster index for each point
+        idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
+
+        # --- Vectorized multinomial sampling ---
+        if probs is None:
+            prob_matrix = transition_probs[idx]  # (B, S, M)
+        else:
+            B, S = batch_size, num_samples_in_batch
+            m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
+            i_idx = batch_indices_all.unsqueeze(-1).expand(B, S, M)
+            j_idx = idx.unsqueeze(-1).expand(B, S, M)
+            prob_matrix = probs[m_idx, j_idx, i_idx]  # (B, S, M)
+
+        # sample realized clusters
+        realized_clusters = torch.multinomial(prob_matrix.view(-1, M), 1).view(
+            batch_size, num_samples_in_batch
+        )
+
+        # gather the centroid coordinates of realized clusters
+        realized_Y = Y_batches.gather(
+            1, realized_clusters.unsqueeze(-1).expand(-1, -1, input_dim)
+        )  # (B, S, d)
+
+        # compute realized distances
+        distances = utils.d_t(X_batches, realized_Y)  # (B, S)
+
+        # --- Vectorized running average update ---
+        flat_i = batch_indices_all.reshape(-1)   # (B*S,)
+        flat_j = idx.reshape(-1)                 # (B*S,)
+        flat_d = distances.reshape(-1)           # (B*S,)
+
+        updates = torch.zeros_like(running_D)    # (N, M)
+        counts  = torch.zeros_like(running_D)    # (N, M)
+
+        updates.index_put_((flat_i, flat_j), flat_d, accumulate=True)
+        counts.index_put_((flat_i, flat_j), torch.ones_like(flat_d), accumulate=True)
+
+        avg_updates = updates / (counts + 1e-8)
+        mask = counts > 0
+        running_D[mask] = (1 - alpha) * running_D[mask] + alpha * avg_updates[mask]
+
+        # --- Vectorized target construction ---
+        # shape (B, S), gather running_D[i, j]
+        targets = running_D[batch_indices_all, idx]  # (B, S)
+
+        # fill into D at [b, s, j]
+        D = torch.zeros(batch_size, num_samples_in_batch, M, device=device)
+        D.scatter_(2, idx.unsqueeze(-1), targets.unsqueeze(-1))
+
+        # masked MSE loss
+        mask = torch.zeros_like(predicted_distances, dtype=torch.bool)
+        mask.scatter_(2, idx.unsqueeze(2), 1)
+        mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
+
+        if epoch % 1000 == 0 and verbose:
+            print(f"[TrainDbar_RunningAvg] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+
+        optimizer.zero_grad()
+        mse_loss.backward()
+        optimizer.step()
+
+        # stopping criterion
+        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / prev_mse_loss < tol:
+            if verbose:
+                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+            break
+        prev_mse_loss = mse_loss.item()
+
+
 
 def trainY(
     model,
@@ -414,7 +542,7 @@ def TrainAnneal(
         Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
 
         # --- TrainDbar ---
-        TrainDbar_mc(
+        TrainDbar_RunningAvg(
             model,
             X,
             Y,
