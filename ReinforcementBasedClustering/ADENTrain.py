@@ -402,6 +402,7 @@ def TrainDbar_Hybrid(
     alpha=0.1,       # EMA smoothing factor
     L=8,             # number of env samples per datapoint (Monte Carlo averaging)
     probs=None,
+    perturbation_std=0.01,  # small noise added to Y each iteration
     verbose=False,
 ):
     """
@@ -416,7 +417,7 @@ def TrainDbar_Hybrid(
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     # expand Y to batch dimension
-    Y_batches = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
+    Y_base = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
 
     for param in model.parameters():
         param.requires_grad = True
@@ -433,12 +434,13 @@ def TrainDbar_Hybrid(
         probs = probs.to(device).float()
 
     prev_mse_loss = float("inf")
-    for epoch in range(epochs):
+    for epoch in range(epochs+1):
         # sample batches from X
         X_batches = torch.zeros(
             batch_size, num_samples_in_batch, input_dim,
             device=device, dtype=torch.float32,
         )
+        Y_batches = Y_base + torch.randn_like(Y_base) * perturbation_std  # small perturbation
         batch_indices_all = []
         for i in range(batch_size):
             batch_indices = torch.randint(0, N, (num_samples_in_batch,), device=device)
@@ -590,7 +592,7 @@ def trainY(
             F_batch = -(1.0 / beta) * torch.sum(
                 torch.log(torch.sum(torch.exp(-beta * (d_s - d_mins)), dim=-1))
                 - beta * d_mins.squeeze(-1)
-            )
+            ) / N  # normalize by total N
 
             F_batch.backward(retain_graph=True if end < N else False)
             F_epoch += F_batch.item()
@@ -605,10 +607,7 @@ def trainY(
             print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3e}")
 
         # Convergence check
-        if (
-            torch.norm(F_old - torch.tensor(F_epoch, device=device)) / torch.norm(F_old)
-            < tol
-        ):
+        if abs(F_epoch - F_old) / (abs(F_old) + 1e-8) < tol:
             if verbose:
                 print(f"[trainY] Converged at epoch {epoch}, F: {F_epoch:.3e}")
             break
@@ -686,6 +685,7 @@ def TrainAnneal(
             tol=tol_train_dbar,
             gamma=gamma_dbar,
             probs=probs_dbar,
+            perturbation_std=perturbation_std,
             verbose=True
         )
 
