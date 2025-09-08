@@ -258,86 +258,10 @@ class ADEN(nn.Module):
         return adaptive_distances
 
 
-class ADENLoss(nn.Module):
-    """Custom loss function for ADEN training"""
-
-    def __init__(self, alpha: float = 1.0, beta: float = 0.1):
-        super().__init__()
-        self.alpha = alpha  # Weight for distance prediction loss
-        self.beta = beta  # Weight for regularization
-
-    def forward(
-        self,
-        predicted_distances: torch.Tensor,
-        target_distances: torch.Tensor,
-    ) -> torch.Tensor:
-        # Main distance prediction loss
-        distance_loss = F.mse_loss(predicted_distances, target_distances)
-
-        total_loss = distance_loss
-
-        return total_loss
-
-
-def create_sample_data(
-    batch_size: int = 32,
-    N: int = 100,
-    M: int = 10,
-    d: int = 64,
-    device: torch.device = torch.device("cuda"),
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Create sample data for testing"""
-    data_points = torch.randn(batch_size, N, d, device=device)
-    cluster_centers = torch.randn(batch_size, M, d, device=device)
-
-    # Generate target distances (base + some learned pattern)
-    base_dist = torch.cdist(data_points, cluster_centers, p=2) ** 2
-    noise = 0.1 * torch.randn_like(base_dist).to(
-        device
-    )  # Add some noise to simulate learned deviations
-    target_distances = base_dist + noise
-
-    return data_points, cluster_centers, target_distances
-
-
-def train_aden(model):
-    """Example training loop"""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Loss and optimizer
-    criterion = ADENLoss(alpha=1.0, beta=0.01)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000)
-
-    model.train()
-    for epoch in range(1000):
-        # Generate batch data
-        data_points, cluster_centers, target_distances = create_sample_data()
-        data_points = data_points.to(device)
-        cluster_centers = cluster_centers.to(device)
-        target_distances = target_distances.to(device)
-
-        # Forward pass
-        predicted_distances = model(data_points, cluster_centers)
-        loss = criterion(predicted_distances, target_distances)
-
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
-        scheduler.step()
-
-        if epoch % 20 == 0:
-            print(f"Epoch {epoch}, Loss: {loss.item():.6f}")
 
 
 if __name__ == "__main__":
     # Test the model
     model = ADEN(input_dim=64, d_model=256, n_layers=4)
-    data_points, cluster_centers, target_distances = create_sample_data(
-        batch_size=2, N=50, M=5
-    )
-
-    # train
-    train_aden(model)
+    print(model)
+    

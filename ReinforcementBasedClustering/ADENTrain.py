@@ -521,6 +521,148 @@ def TrainDbar_Hybrid(
             break
         prev_mse_loss = mse_loss.item()
 
+def TrainDbar_Hybrid_vec(
+    model,
+    X,
+    Y,
+    device,
+    epochs=1000,
+    batch_size=32,
+    num_samples_in_batch=128,
+    lr=1e-4,
+    weight_decay=1e-5,
+    tol=1e-6,
+    gamma=1000.0,
+    alpha=0.1,       # EMA smoothing factor
+    mc_samples=8,    # vectorized MC samples per datapoint (was L)
+    probs=None,
+    perturbation_std=0.01,  # small noise added to Y each iteration
+    verbose=False,
+):
+    """
+    Vectorized hybrid TrainDbar:
+      - Monte Carlo averaging (mc_samples) vectorized
+      - Online running averages (EMA) for variance reduction
+    """
+
+    N, input_dim = X.shape
+    M = Y.shape[0]
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # base Y expanded to batch dimension; we'll add small noise per epoch
+    Y_base = Y.unsqueeze(0).expand(batch_size, -1, -1).to(device).float()
+
+    for param in model.parameters():
+        param.requires_grad = True
+    model.train()
+
+    # running average estimates of expected distances (N, M)
+    running_D = torch.zeros(N, M, device=device)
+
+    # default transition probs (M, M)
+    if probs is None:
+        transition_probs = torch.exp(-gamma * torch.cdist(Y, Y, p=2) ** 2)  # (M, M)
+        transition_probs = transition_probs / transition_probs.sum(dim=-1, keepdim=True)
+    else:
+        probs = probs.to(device).float()
+
+    prev_mse_loss = float("inf")
+    for epoch in range(epochs + 1):
+        # sample batches from X
+        X_batches = torch.zeros(
+            batch_size, num_samples_in_batch, input_dim,
+            device=device, dtype=torch.float32,
+        )
+        # perturb Y for this epoch (small)
+        Y_batches = Y_base + torch.randn_like(Y_base) * perturbation_std  # (B, M, d)
+        batch_indices_all = []
+        for i in range(batch_size):
+            batch_indices = torch.randint(0, N, (num_samples_in_batch,), device=device)
+            X_batches[i] = X[batch_indices]
+            batch_indices_all.append(batch_indices)
+        batch_indices_all = torch.stack(batch_indices_all, dim=0)  # (B, S)
+
+        # forward pass
+        predicted_distances = model(X_batches, Y_batches)  # (B, S, M)
+
+        # closest cluster index for each point
+        idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
+
+        # --- Vectorized multinomial sampling / transition probs ---
+        if probs is None:
+            prob_matrix = transition_probs[idx]  # (B, S, M)
+        else:
+            B, S = batch_size, num_samples_in_batch
+            m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
+            i_idx = batch_indices_all.unsqueeze(-1).expand(B, S, M)
+            j_idx = idx.unsqueeze(-1).expand(B, S, M)
+            prob_matrix = probs[m_idx, j_idx, i_idx]  # (B, S, M)
+
+        # --- Vectorized Monte Carlo sampling (no python loop) ---
+        B, S = batch_size, num_samples_in_batch
+        flat_probs = prob_matrix.view(-1, M)                    # (B*S, M)
+        # sample mc_samples indices per row -> (B*S, mc_samples)
+        realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
+        realized_clusters = realized_clusters.view(B, S, mc_samples)  # (B, S, mc)
+
+        # gather centroids for all MC samples:
+        # prepare realized_Y template shape (B, M, mc, dim)
+        realized_Y_template = Y_batches.unsqueeze(2).expand(B, M, mc_samples, input_dim)
+        # gather along dim=1 using indices shaped (B, S, mc, 1) -> outputs (B, S, mc, dim)
+        chosen_Y = realized_Y_template.gather(
+            1,
+            realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
+        )  # (B, S, mc, dim)
+
+        # compute distances for all mc samples in one call
+        # X expanded to (B, S, mc, dim)
+        X_exp = X_batches.unsqueeze(2).expand(-1, -1, mc_samples, -1)  # (B, S, mc, dim)
+        d_all = utils.d_t(X_exp, chosen_Y)  # (B, S, mc)
+        # average across mc dimension -> (B, S)
+        distances = d_all.mean(dim=-1)  # (B, S)
+
+        # --- Vectorized running average update (same as before) ---
+        flat_i = batch_indices_all.reshape(-1)   # (B*S,)
+        flat_j = idx.reshape(-1)                 # (B*S,)
+        flat_d = distances.reshape(-1)           # (B*S,)
+
+        updates = torch.zeros_like(running_D)    # (N, M)
+        counts  = torch.zeros_like(running_D)    # (N, M)
+
+        updates.index_put_((flat_i, flat_j), flat_d, accumulate=True)
+        counts.index_put_((flat_i, flat_j), torch.ones_like(flat_d), accumulate=True)
+
+        avg_updates = updates / (counts + 1e-8)
+        mask = counts > 0
+        running_D[mask] = (1 - alpha) * running_D[mask] + alpha * avg_updates[mask]
+
+        # --- Vectorized target construction from running averages ---
+        targets = running_D[batch_indices_all, idx]  # (B, S)
+
+        D = torch.zeros(B, S, M, device=device)
+        D.scatter_(2, idx.unsqueeze(-1), targets.unsqueeze(-1))
+
+        # masked MSE loss (only on predicted idx entries)
+        mask_pred = torch.zeros_like(predicted_distances, dtype=torch.bool)
+        mask_pred.scatter_(2, idx.unsqueeze(2), 1)
+        mse_loss = torch.sum((D[mask_pred] - predicted_distances[mask_pred]) ** 2)
+
+        if epoch % 1000 == 0 and verbose:
+            print(f"[TrainDbar_Hybrid_vec] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+
+        optimizer.zero_grad()
+        mse_loss.backward()
+        optimizer.step()
+
+        # stopping criterion
+        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / (prev_mse_loss + 1e-12) < tol:
+            if verbose:
+                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+            break
+        prev_mse_loss = mse_loss.item()
+
+    return
 
 def trainY(
     model,
@@ -672,7 +814,7 @@ def TrainAnneal(
         Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
 
         # --- TrainDbar ---
-        TrainDbar_Hybrid(
+        TrainDbar_Hybrid_vec(
             model,
             X,
             Y,
