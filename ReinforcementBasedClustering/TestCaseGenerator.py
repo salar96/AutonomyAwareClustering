@@ -98,6 +98,10 @@ def data_RLClustering(idx):
             X.append(pts)
             C_labels.extend([lab] * n)
         X = np.vstack(X)
+        # Normalize data to fit in [0, 1] x [0, 1]
+        X_min = X.min(axis=0)
+        X_max = X.max(axis=0)
+        X = (X - X_min) / (X_max - X_min)
         K = 4
         N, d = X.shape
         ############################################## CASE 1

@@ -2,6 +2,27 @@ import torch
 import utils
 
 
+def epsilon_greedy_assignment(predicted_distances, epsilon, device):
+    """
+    predicted_distances: (B, S, M)
+    epsilon: scalar float in [0,1]
+    """
+    B, S, M = predicted_distances.shape
+
+    # greedy choice (closest cluster)
+    greedy_idx = torch.argmin(predicted_distances, dim=-1)  # (B, S)
+
+    # random choice
+    random_idx = torch.randint(0, M, (B, S), device=device)
+
+    # bernoulli mask: 1 = explore (random), 0 = exploit (greedy)
+    explore_mask = torch.rand(B, S, device=device) < epsilon
+
+    # mix greedy and random
+    final_idx = torch.where(explore_mask, random_idx, greedy_idx)
+    return final_idx
+
+
 def TrainDbar(
     model,
     X,
@@ -149,7 +170,7 @@ def TrainDbar_mc(
     epochs=1000,
     batch_size=32,
     num_samples_in_batch=128,
-    mc_samples=16,   # NEW: number of Monte Carlo samples per datapoint
+    mc_samples=16,  # NEW: number of Monte Carlo samples per datapoint
     lr=1e-4,
     weight_decay=1e-5,
     tol=1e-6,
@@ -223,19 +244,20 @@ def TrainDbar_mc(
 
         # draw mc_samples samples for each datapoint
         realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
-        realized_clusters = realized_clusters.view(batch_size, num_samples_in_batch, mc_samples)
+        realized_clusters = realized_clusters.view(
+            batch_size, num_samples_in_batch, mc_samples
+        )
 
         # gather centroids
         realized_Y = Y_batches.unsqueeze(2).expand(batch_size, M, mc_samples, input_dim)
         chosen_Y = realized_Y.gather(
-            1,
-            realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
+            1, realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
         )  # (B, S, mc, input_dim)
 
         # compute distances and average
         distances = utils.d_t(
             X_batches.unsqueeze(2).expand(-1, -1, mc_samples, -1),  # (B, S, mc, dim)
-            chosen_Y
+            chosen_Y,
         )  # (B, S, mc)
         mean_distances = distances.mean(dim=-1)  # (B, S)
 
@@ -272,7 +294,7 @@ def TrainDbar_RunningAvg(
     weight_decay=1e-5,
     tol=1e-6,
     gamma=1000.0,
-    alpha=0.1,   # smoothing factor for EMA
+    alpha=0.1,  # smoothing factor for EMA
     probs=None,
     verbose=False,
 ):
@@ -306,8 +328,11 @@ def TrainDbar_RunningAvg(
     for epoch in range(epochs):
         # sample batches from X
         X_batches = torch.zeros(
-            batch_size, num_samples_in_batch, input_dim,
-            device=device, dtype=torch.float32,
+            batch_size,
+            num_samples_in_batch,
+            input_dim,
+            device=device,
+            dtype=torch.float32,
         )
         batch_indices_all = []
         for i in range(batch_size):
@@ -346,12 +371,12 @@ def TrainDbar_RunningAvg(
         distances = utils.d_t(X_batches, realized_Y)  # (B, S)
 
         # --- Vectorized running average update ---
-        flat_i = batch_indices_all.reshape(-1)   # (B*S,)
-        flat_j = idx.reshape(-1)                 # (B*S,)
-        flat_d = distances.reshape(-1)           # (B*S,)
+        flat_i = batch_indices_all.reshape(-1)  # (B*S,)
+        flat_j = idx.reshape(-1)  # (B*S,)
+        flat_d = distances.reshape(-1)  # (B*S,)
 
-        updates = torch.zeros_like(running_D)    # (N, M)
-        counts  = torch.zeros_like(running_D)    # (N, M)
+        updates = torch.zeros_like(running_D)  # (N, M)
+        counts = torch.zeros_like(running_D)  # (N, M)
 
         updates.index_put_((flat_i, flat_j), flat_d, accumulate=True)
         counts.index_put_((flat_i, flat_j), torch.ones_like(flat_d), accumulate=True)
@@ -374,7 +399,9 @@ def TrainDbar_RunningAvg(
         mse_loss = torch.sum((D[mask] - predicted_distances[mask]) ** 2)
 
         if epoch % 1000 == 0 and verbose:
-            print(f"[TrainDbar_RunningAvg] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+            print(
+                f"[TrainDbar_RunningAvg] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}"
+            )
 
         optimizer.zero_grad()
         mse_loss.backward()
@@ -386,6 +413,7 @@ def TrainDbar_RunningAvg(
                 print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
             break
         prev_mse_loss = mse_loss.item()
+
 
 def TrainDbar_Hybrid(
     model,
@@ -399,10 +427,11 @@ def TrainDbar_Hybrid(
     weight_decay=1e-5,
     tol=1e-6,
     gamma=1000.0,
-    alpha=0.1,       # EMA smoothing factor
-    L=8,             # number of env samples per datapoint (Monte Carlo averaging)
+    alpha=0.1,  # EMA smoothing factor
+    L=8,  # number of env samples per datapoint (Monte Carlo averaging)
     probs=None,
     perturbation_std=0.01,  # small noise added to Y each iteration
+    epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
 ):
     """
@@ -434,13 +463,18 @@ def TrainDbar_Hybrid(
         probs = probs.to(device).float()
 
     prev_mse_loss = float("inf")
-    for epoch in range(epochs+1):
+    for epoch in range(epochs + 1):
         # sample batches from X
         X_batches = torch.zeros(
-            batch_size, num_samples_in_batch, input_dim,
-            device=device, dtype=torch.float32,
+            batch_size,
+            num_samples_in_batch,
+            input_dim,
+            device=device,
+            dtype=torch.float32,
         )
-        Y_batches = Y_base + torch.randn_like(Y_base) * perturbation_std  # small perturbation
+        Y_batches = (
+            Y_base + torch.randn_like(Y_base) * perturbation_std
+        )  # small perturbation
         batch_indices_all = []
         for i in range(batch_size):
             batch_indices = torch.randint(0, N, (num_samples_in_batch,), device=device)
@@ -452,8 +486,8 @@ def TrainDbar_Hybrid(
         predicted_distances = model(X_batches, Y_batches)  # (B, S, M)
 
         # closest cluster index for each point
-        idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
-
+        # idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
+        idx = epsilon_greedy_assignment(predicted_distances, epsilon, device)
         # --- Vectorized multinomial sampling ---
         if probs is None:
             prob_matrix = transition_probs[idx]  # (B, S, M)
@@ -482,12 +516,12 @@ def TrainDbar_Hybrid(
         distances = torch.stack(realized_d_list, dim=0).mean(0)  # (B, S)
 
         # --- Vectorized running average update ---
-        flat_i = batch_indices_all.reshape(-1)   # (B*S,)
-        flat_j = idx.reshape(-1)                 # (B*S,)
-        flat_d = distances.reshape(-1)           # (B*S,)
+        flat_i = batch_indices_all.reshape(-1)  # (B*S,)
+        flat_j = idx.reshape(-1)  # (B*S,)
+        flat_d = distances.reshape(-1)  # (B*S,)
 
-        updates = torch.zeros_like(running_D)    # (N, M)
-        counts  = torch.zeros_like(running_D)    # (N, M)
+        updates = torch.zeros_like(running_D)  # (N, M)
+        counts = torch.zeros_like(running_D)  # (N, M)
 
         updates.index_put_((flat_i, flat_j), flat_d, accumulate=True)
         counts.index_put_((flat_i, flat_j), torch.ones_like(flat_d), accumulate=True)
@@ -521,6 +555,7 @@ def TrainDbar_Hybrid(
             break
         prev_mse_loss = mse_loss.item()
 
+
 def TrainDbar_Hybrid_vec(
     model,
     X,
@@ -533,10 +568,11 @@ def TrainDbar_Hybrid_vec(
     weight_decay=1e-5,
     tol=1e-6,
     gamma=1000.0,
-    alpha=0.1,       # EMA smoothing factor
-    mc_samples=8,    # vectorized MC samples per datapoint (was L)
+    alpha=0.1,  # EMA smoothing factor
+    mc_samples=8,  # vectorized MC samples per datapoint (was L)
     probs=None,
     perturbation_std=0.01,  # small noise added to Y each iteration
+    epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
 ):
     """
@@ -571,8 +607,11 @@ def TrainDbar_Hybrid_vec(
     for epoch in range(epochs + 1):
         # sample batches from X
         X_batches = torch.zeros(
-            batch_size, num_samples_in_batch, input_dim,
-            device=device, dtype=torch.float32,
+            batch_size,
+            num_samples_in_batch,
+            input_dim,
+            device=device,
+            dtype=torch.float32,
         )
         # perturb Y for this epoch (small)
         Y_batches = Y_base + torch.randn_like(Y_base) * perturbation_std  # (B, M, d)
@@ -587,7 +626,8 @@ def TrainDbar_Hybrid_vec(
         predicted_distances = model(X_batches, Y_batches)  # (B, S, M)
 
         # closest cluster index for each point
-        idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
+        # idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
+        idx = epsilon_greedy_assignment(predicted_distances, epsilon, device)
 
         # --- Vectorized multinomial sampling / transition probs ---
         if probs is None:
@@ -601,7 +641,7 @@ def TrainDbar_Hybrid_vec(
 
         # --- Vectorized Monte Carlo sampling (no python loop) ---
         B, S = batch_size, num_samples_in_batch
-        flat_probs = prob_matrix.view(-1, M)                    # (B*S, M)
+        flat_probs = prob_matrix.view(-1, M)  # (B*S, M)
         # sample mc_samples indices per row -> (B*S, mc_samples)
         realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
         realized_clusters = realized_clusters.view(B, S, mc_samples)  # (B, S, mc)
@@ -611,8 +651,7 @@ def TrainDbar_Hybrid_vec(
         realized_Y_template = Y_batches.unsqueeze(2).expand(B, M, mc_samples, input_dim)
         # gather along dim=1 using indices shaped (B, S, mc, 1) -> outputs (B, S, mc, dim)
         chosen_Y = realized_Y_template.gather(
-            1,
-            realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
+            1, realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
         )  # (B, S, mc, dim)
 
         # compute distances for all mc samples in one call
@@ -623,12 +662,12 @@ def TrainDbar_Hybrid_vec(
         distances = d_all.mean(dim=-1)  # (B, S)
 
         # --- Vectorized running average update (same as before) ---
-        flat_i = batch_indices_all.reshape(-1)   # (B*S,)
-        flat_j = idx.reshape(-1)                 # (B*S,)
-        flat_d = distances.reshape(-1)           # (B*S,)
+        flat_i = batch_indices_all.reshape(-1)  # (B*S,)
+        flat_j = idx.reshape(-1)  # (B*S,)
+        flat_d = distances.reshape(-1)  # (B*S,)
 
-        updates = torch.zeros_like(running_D)    # (N, M)
-        counts  = torch.zeros_like(running_D)    # (N, M)
+        updates = torch.zeros_like(running_D)  # (N, M)
+        counts = torch.zeros_like(running_D)  # (N, M)
 
         updates.index_put_((flat_i, flat_j), flat_d, accumulate=True)
         counts.index_put_((flat_i, flat_j), torch.ones_like(flat_d), accumulate=True)
@@ -649,20 +688,26 @@ def TrainDbar_Hybrid_vec(
         mse_loss = torch.sum((D[mask_pred] - predicted_distances[mask_pred]) ** 2)
 
         if epoch % 1000 == 0 and verbose:
-            print(f"[TrainDbar_Hybrid_vec] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+            print(
+                f"[TrainDbar_Hybrid_vec] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}"
+            )
 
         optimizer.zero_grad()
         mse_loss.backward()
         optimizer.step()
 
         # stopping criterion
-        if epoch > 0 and abs(mse_loss.item() - prev_mse_loss) / (prev_mse_loss + 1e-12) < tol:
+        if (
+            epoch > 0
+            and abs(mse_loss.item() - prev_mse_loss) / (prev_mse_loss + 1e-12) < tol
+        ):
             if verbose:
                 print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
             break
         prev_mse_loss = mse_loss.item()
 
     return
+
 
 def trainY(
     model,
@@ -716,7 +761,7 @@ def trainY(
     F_old = torch.tensor(float("inf"), device=device)
     history = []
 
-    for epoch in range(max_epochs+1):
+    for epoch in range(max_epochs + 1):
         # Shuffle X for batching
         perm = torch.randperm(N, device=device)
         F_epoch = 0.0
@@ -731,10 +776,14 @@ def trainY(
 
             d_mins = torch.min(d_s, dim=-1, keepdim=True).values  # (B, 1)
             # Free energy contribution for this batch
-            F_batch = -(1.0 / beta) * torch.sum(
-                torch.log(torch.sum(torch.exp(-beta * (d_s - d_mins)), dim=-1))
-                - beta * d_mins.squeeze(-1)
-            ) / N  # normalize by total N
+            F_batch = (
+                -(1.0 / beta)
+                * torch.sum(
+                    torch.log(torch.sum(torch.exp(-beta * (d_s - d_mins)), dim=-1))
+                    - beta * d_mins.squeeze(-1)
+                )
+                / N
+            )  # normalize by total N
 
             F_batch.backward(retain_graph=True if end < N else False)
             F_epoch += F_batch.item()
@@ -812,7 +861,8 @@ def TrainAnneal(
 
         # Perturb Y
         Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
-
+        # Assigning epsilon for epsilon-greedy based on temperature beta
+        epsilon = max(0.1, 1.0 / (beta + 1.0))
         # --- TrainDbar ---
         TrainDbar_Hybrid_vec(
             model,
@@ -828,7 +878,8 @@ def TrainAnneal(
             gamma=gamma_dbar,
             probs=probs_dbar,
             perturbation_std=perturbation_std,
-            verbose=True
+            epsilon=epsilon,
+            verbose=True,
         )
 
         # --- trainY ---
@@ -847,7 +898,9 @@ def TrainAnneal(
         )
         with torch.no_grad():
             pi = (
-                torch.argmin(model(X.unsqueeze(0), Y.unsqueeze(0))[0], dim=-1).cpu().numpy()
+                torch.argmin(model(X.unsqueeze(0), Y.unsqueeze(0))[0], dim=-1)
+                .cpu()
+                .numpy()
             )  # (N, M)
         history_y_all.append(Y.clone().detach().cpu().numpy())
         history_pi_all.append(pi)
