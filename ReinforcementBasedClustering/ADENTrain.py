@@ -860,7 +860,7 @@ def TrainAnneal(
         print(f"\n=== Annealing step: Beta = {beta:.4f} ===")
 
         # Perturb Y
-        Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
+        # Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
         # Assigning epsilon for epsilon-greedy based on temperature beta
         epsilon = max(0.1, 1.0 / (beta + 1.0))
         # --- TrainDbar ---
