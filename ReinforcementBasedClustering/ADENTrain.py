@@ -897,11 +897,11 @@ def TrainAnneal(
             verbose=True,
         )
         with torch.no_grad():
-            pi = (
-                torch.argmin(model(X.unsqueeze(0), Y.unsqueeze(0))[0], dim=-1)
-                .cpu()
-                .numpy()
-            )  # (N, M)
+            D_s = model(X.unsqueeze(0), Y.unsqueeze(0))[0]
+            d_mins = torch.min(D_s, dim=-1, keepdim=True).values
+            exp_d = torch.exp(- beta * (D_s - d_mins))  # (N, M)
+            pi = (exp_d / exp_d.sum(dim=-1, keepdim=True)).detach().cpu().numpy() # (N, M)
+            
         history_y_all.append(Y.clone().detach().cpu().numpy())
         history_pi_all.append(pi)
         # Increase beta
