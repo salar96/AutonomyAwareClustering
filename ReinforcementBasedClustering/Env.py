@@ -18,7 +18,7 @@ class ClusteringEnvNumpy:
         _ = self.return_probabilities(None, None)
 
     def return_probabilities(self, X, Y, gamma=1.0,
-                             eps=0.1, zeta=1.0, T=1.0):
+                             eps=0.2, zeta=0.0, T=0.01):
         """
         Compute p(k|j,i).
         X : (n_data, n_features)   data points

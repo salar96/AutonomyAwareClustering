@@ -42,17 +42,19 @@ def compute_cluster_centers(X, rho, pi, p_l_given_ji, eps=1e-12):
     return Y
 
 
-def cluster_gt(X, Y, rho, p_l_given_ji, beta_min=0.1, beta_max=10000.0, tau=1.5):
+def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5):
     M = Y.shape[0]
     N = X.shape[0]
     beta = beta_min
     Y_old = Y.copy() + 1e6
     Y_list = []
     pi_list = []
+    Betas = []
     while beta <= beta_max:
         counter = 0
         while np.linalg.norm(Y - Y_old) / np.linalg.norm(Y_old) > 1e-6:
             # update policy
+            p_l_given_ji = env.return_probabilities(X, Y)  # (M,M,N)
             D = cdist(X, Y, "sqeuclidean", out=None)
             D_bar = np.einsum("il,lji->ij", D, p_l_given_ji)
             mins = np.min(D_bar, axis=1, keepdims=True)
@@ -66,6 +68,7 @@ def cluster_gt(X, Y, rho, p_l_given_ji, beta_min=0.1, beta_max=10000.0, tau=1.5)
             Y_old = Y.copy()
         Y_list.append(Y)
         pi_list.append(pi)
+        Betas.append(beta)
         beta *= tau
         Y += np.random.randn(M, 2) * 0.001  # Add small noise to avoid local minima
-    return Y, pi, Y_list, pi_list
+    return Y, pi, Y_list, pi_list, Betas
