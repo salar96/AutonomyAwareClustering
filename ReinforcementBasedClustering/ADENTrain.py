@@ -856,8 +856,9 @@ def TrainAnneal(
     beta = beta_init
     history_y_all = []
     history_pi_all = []
+    Betas = []
     while beta <= beta_final:
-        print(f"\n=== Annealing step: Beta = {beta:.4f} ===")
+        print(f"\n=== Annealing step: Beta = {beta:.3e} ===")
 
         # Perturb Y
         # Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
@@ -904,8 +905,9 @@ def TrainAnneal(
             
         history_y_all.append(Y.clone().detach().cpu().numpy())
         history_pi_all.append(pi)
+        Betas.append(beta)
         # Increase beta
         beta *= beta_growth_rate
         # model.reset_weights()  # Reset model weights for each temperature
 
-    return Y, history_y_all, history_pi_all
+    return Y, history_y_all, history_pi_all, Betas

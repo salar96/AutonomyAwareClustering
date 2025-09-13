@@ -6,6 +6,7 @@ def animate_Clusters(
     nodes,
     Facilities_over_time,
     assignment_probabilities,  # Now takes probabilities instead of hard assignments
+    Betas, # List of beta values over time
     figuresize=(6, 5),
     interval=200,
     save_path="facility_movement.gif",
@@ -92,9 +93,10 @@ def animate_Clusters(
                 f_scatters[j].set_offsets([Facilities_over_time[frame][j]])
             else:
                 f_scatters[j].set_offsets([])
-        
+        # put a text (not title) on the top with beta value
+        ax.set_title(f"Beta: {Betas[frame]:.2f}", fontsize=12, pad=10)
         return [node_scatter] + f_scatters
-
+        
     # Create animation
     anim = animation.FuncAnimation(
         fig, update, frames=len(Facilities_over_time), interval=interval, blit=True
