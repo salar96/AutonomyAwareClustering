@@ -216,8 +216,8 @@ class ClusteringEnvTorch:
             u_masked = torch.where(
                 mask, u, torch.tensor(float("inf"), device=self.device)
             )
-
-            exp_u = torch.exp(-u_masked / self.T)
+            u_masked_mins = torch.min(u_masked, dim=0, keepdim=True).values
+            exp_u = torch.exp(-(u_masked - u_masked_mins) / self.T)
             denom = exp_u.sum(dim=0, keepdim=True)  # (1, j, i)
 
             prob = torch.where(mask, self.eps * exp_u / denom, torch.zeros_like(u))
