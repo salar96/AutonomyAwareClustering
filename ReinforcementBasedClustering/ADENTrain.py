@@ -622,23 +622,24 @@ def TrainDbar_Hybrid_vec(
         idx = epsilon_greedy_assignment(predicted_distances, epsilon, device)
         B , S = batch_size, num_samples_in_batch
         # --- Vectorized multinomial sampling / transition probs ---
-        realized_clusters = env.step(
-            batch_indices_all,
-            idx,
-            B,
-            S,
-            mc_samples,
-            X,
-            Y
-        )
+        with torch.no_grad():
+            realized_clusters = env.step(
+                batch_indices_all,
+                idx,
+                B,
+                S,
+                mc_samples,
+                X,
+                Y
+            ) # (B, S, mc)
 
-        # gather centroids for all MC samples:
-        # prepare realized_Y template shape (B, M, mc, dim)
-        realized_Y_template = Y_batches.unsqueeze(2).expand(B, M, mc_samples, input_dim)
-        # gather along dim=1 using indices shaped (B, S, mc, 1) -> outputs (B, S, mc, dim)
-        chosen_Y = realized_Y_template.gather(
-            1, realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
-        )  # (B, S, mc, dim)
+            # gather centroids for all MC samples:
+            # prepare realized_Y template shape (B, M, mc, dim)
+            realized_Y_template = Y_batches.unsqueeze(2).expand(B, M, mc_samples, input_dim)
+            # gather along dim=1 using indices shaped (B, S, mc, 1) -> outputs (B, S, mc, dim)
+            chosen_Y = realized_Y_template.gather(
+                1, realized_clusters.unsqueeze(-1).expand(-1, -1, -1, input_dim)
+            )  # (B, S, mc, dim)
 
         # compute distances for all mc samples in one call
         # X expanded to (B, S, mc, dim)
@@ -888,7 +889,11 @@ def TrainAnneal(
             pi = (
                 (exp_d / exp_d.sum(dim=-1, keepdim=True)).detach().cpu().numpy()
             )  # (N, M)
-
+        # raise warning if any cluster center is out of [0,1] range
+        if (Y < 0).any() or (Y > 1).any():
+            print(
+                "\033[93m[Warning] Some cluster centers are out of [0,1] range. Consider decreasing lr_train_y or increasing perturbation_std.\033[0m"
+            )
         history_y_all.append(Y.clone().detach().cpu().numpy())
         history_pi_all.append(pi)
         Betas.append(beta)

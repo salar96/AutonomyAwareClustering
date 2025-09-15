@@ -188,6 +188,7 @@ class ClusteringEnvTorch:
         self.prob = None
         _ = self.return_probabilities(None, None)  # initialize prob
 
+    @torch.no_grad()  # no need to track gradients here
     def return_probabilities(self, X, Y):
         """
         Compute p(k|j,i).
@@ -239,7 +240,7 @@ class ClusteringEnvTorch:
         self.prob = prob
         return prob
 
-    @torch.no_grad()
+    @torch.no_grad()  # no need to track gradients here
     def step(self, batch_indices_all, idx, B, S, mc_samples, X=None, Y=None):
         """
         Batched Monte-Carlo sampling of next clusters.
@@ -274,6 +275,11 @@ class ClusteringEnvTorch:
         prob_matrix = probs[m_idx, j_idx, i_idx]  # (B, S, M)
         flat_probs = prob_matrix.reshape(-1, M)  # (B*S, M)
 
+        assert torch.all(torch.isfinite(flat_probs)), "NaN/Inf in probs"
+        assert torch.all(flat_probs >= 0), "Negative probs"
+        row_sums = flat_probs.sum(dim=1)
+        assert torch.all(row_sums > 0), "Row with zero total probability"
+        
         realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
         realized_clusters = realized_clusters.view(B, S, mc_samples)
         return realized_clusters
@@ -294,4 +300,4 @@ if __name__ == "__main__":
     bathch_indices_all = torch.randint(0, N, (10, 4)).long().to("cuda")
     idx = torch.randint(0, M, (10, 4)).long().to("cuda")
     next_clusters = env.step(bathch_indices_all, idx, 10, 4, 3)
-    print("Next clusters shape:", next_clusters.shape)  # should be (10, 4, 3)
+    print("\033[93mNext clusters shape:", next_clusters.shape, "\033[0m")  # should be (10, 4, 3)
