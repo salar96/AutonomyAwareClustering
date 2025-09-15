@@ -560,6 +560,7 @@ def TrainDbar_Hybrid_vec(
     model,
     X,
     Y,
+    env,
     device,
     epochs=1000,
     batch_size=32,
@@ -567,10 +568,8 @@ def TrainDbar_Hybrid_vec(
     lr=1e-4,
     weight_decay=1e-5,
     tol=1e-6,
-    gamma=1000.0,
     alpha=0.1,  # EMA smoothing factor
     mc_samples=8,  # vectorized MC samples per datapoint (was L)
-    probs=None,
     perturbation_std=0.01,  # small noise added to Y each iteration
     epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
@@ -595,13 +594,6 @@ def TrainDbar_Hybrid_vec(
 
     # running average estimates of expected distances (N, M)
     running_D = torch.zeros(N, M, device=device)
-
-    # default transition probs (M, M)
-    if probs is None:
-        transition_probs = torch.exp(-gamma * torch.cdist(Y, Y, p=2) ** 2)  # (M, M)
-        transition_probs = transition_probs / transition_probs.sum(dim=-1, keepdim=True)
-    else:
-        probs = probs.to(device).float()
 
     prev_mse_loss = float("inf")
     for epoch in range(epochs + 1):
@@ -628,23 +620,17 @@ def TrainDbar_Hybrid_vec(
         # closest cluster index for each point
         # idx = torch.argmin(predicted_distances, dim=-1).long()  # (B, S)
         idx = epsilon_greedy_assignment(predicted_distances, epsilon, device)
-
+        B , S = batch_size, num_samples_in_batch
         # --- Vectorized multinomial sampling / transition probs ---
-        if probs is None:
-            prob_matrix = transition_probs[idx]  # (B, S, M)
-        else:
-            B, S = batch_size, num_samples_in_batch
-            m_idx = torch.arange(M, device=device).view(1, 1, M).expand(B, S, M)
-            i_idx = batch_indices_all.unsqueeze(-1).expand(B, S, M)
-            j_idx = idx.unsqueeze(-1).expand(B, S, M)
-            prob_matrix = probs[m_idx, j_idx, i_idx]  # (B, S, M)
-
-        # --- Vectorized Monte Carlo sampling (no python loop) ---
-        B, S = batch_size, num_samples_in_batch
-        flat_probs = prob_matrix.view(-1, M)  # (B*S, M)
-        # sample mc_samples indices per row -> (B*S, mc_samples)
-        realized_clusters = torch.multinomial(flat_probs, mc_samples, replacement=True)
-        realized_clusters = realized_clusters.view(B, S, mc_samples)  # (B, S, mc)
+        realized_clusters = env.step(
+            batch_indices_all,
+            idx,
+            B,
+            S,
+            mc_samples,
+            X,
+            Y
+        )
 
         # gather centroids for all MC samples:
         # prepare realized_Y template shape (B, M, mc, dim)
@@ -812,6 +798,7 @@ def TrainAnneal(
     model,
     X,
     Y,
+    env,
     device,
     # TrainDbar hyperparameters
     epochs_dbar=1000,
@@ -820,8 +807,6 @@ def TrainAnneal(
     lr_dbar=1e-4,
     weight_decay_dbar=1e-5,
     tol_train_dbar=1e-6,
-    gamma_dbar=1000.0,
-    probs_dbar=None,
     # trainY hyperparameters
     epochs_train_y=10000,
     batch_size_train_y=None,
@@ -869,6 +854,7 @@ def TrainAnneal(
             model,
             X,
             Y,
+            env,
             device,
             epochs=epochs_dbar,
             batch_size=batch_size_dbar,
@@ -876,8 +862,6 @@ def TrainAnneal(
             lr=lr_dbar,
             weight_decay=weight_decay_dbar,
             tol=tol_train_dbar,
-            gamma=gamma_dbar,
-            probs=probs_dbar,
             perturbation_std=perturbation_std,
             epsilon=epsilon,
             verbose=True,
@@ -900,9 +884,11 @@ def TrainAnneal(
         with torch.no_grad():
             D_s = model(X.unsqueeze(0), Y.unsqueeze(0))[0]
             d_mins = torch.min(D_s, dim=-1, keepdim=True).values
-            exp_d = torch.exp(- beta * (D_s - d_mins))  # (N, M)
-            pi = (exp_d / exp_d.sum(dim=-1, keepdim=True)).detach().cpu().numpy() # (N, M)
-            
+            exp_d = torch.exp(-beta * (D_s - d_mins))  # (N, M)
+            pi = (
+                (exp_d / exp_d.sum(dim=-1, keepdim=True)).detach().cpu().numpy()
+            )  # (N, M)
+
         history_y_all.append(Y.clone().detach().cpu().numpy())
         history_pi_all.append(pi)
         Betas.append(beta)
