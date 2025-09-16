@@ -4,7 +4,7 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         X = [data.AvgWatchTime data.GenreDiversity data.PreferredGenreAction...
             data.PreferredGenreDrama data.PreferredGenreComedy data.BingeFrequency data.SubscriptionTier];
         
-        K = 3; % clusters
+        K = 2; % clusters
         [M, N] = size(X);
         T_P = zeros(K, K, M);
         
@@ -13,9 +13,11 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
                 probs = zeros(1, K);
                 for l = 1:K
                     if l == j
-                        probs(l) = rand * 0.3 + 0.7; % strong preference for own cluster (0.7–1.0)
+                        %probs(l) = rand * 0.3 + 0.7; % strong preference for own cluster (0.7–1.0)
+                        probs(l) = 1;
                     else
-                        probs(l) = rand * 0.1;       % small probability for others (0–0.1)
+                        %probs(l) = rand * 0.1;       % small probability for others (0–0.1)
+                        probs(l) = 0;
                     end
                 end
                 probs = probs / sum(probs);  % normalize
@@ -134,14 +136,14 @@ function [X,K,T_P,M,N] = data_RLClustering(idx)
         for j = 1 : K
             for k = 1 : K
                 if j ~= k
-                    T_P(k,j,:) = 1/(K*(K-1));
+                    %T_P(k,j,:) = 1/(K*(K-1));
                     %T_P(k,j,:) = 1/K;
-                    %T_P(k,j,:) = 0;
+                    T_P(k,j,:) = 0;
                 end
             end
-            T_P(j,j,:) = (K-1)/K;
+            %T_P(j,j,:) = (K-1)/K;
             %T_P(j,j,:) = 1/K;
-            %T_P(j,j,:) = 1;
+            T_P(j,j,:) = 1;
         end
         scatter(X(:,1),X(:,2),90,'filled','MarkerEdgeColor',[0 0.5 0.5],...
             'MarkerFaceColor',[0 0.7 0.7],'LineWidth',1.5); 

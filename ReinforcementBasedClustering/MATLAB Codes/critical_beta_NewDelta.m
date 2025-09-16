@@ -42,4 +42,5 @@ function [T_cr, Delta] = critical_beta_NewDelta(X, Y, K, M, T_P, P, rho)
 
     T_cr = 2*max(eig(Delta-Delta2));
     Delta = Delta - Delta2;
+    disp(min(eig(Delta)));
 end
