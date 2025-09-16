@@ -44,7 +44,7 @@ WEIGHT_DECAY_TRAIN_Y = 1e-5
 TOL_TRAIN_Y = 1e-4
 
 BETA_INIT = 10.0
-BETA_F = 100000.0
+BETA_F = 10000.0
 BETA_GROWTH_RATE = 1.1
 PERTURBATION_STD = 0.01
 
@@ -52,7 +52,36 @@ parametrized = True
 eps_list = [0.1, 0.3, 0.5, 0.7, 0.9]
 gamma_list = [0.0, 0.5]
 zeta_list = [0.5, 1.0]
-T_list = [10, 1, 0.1, 0.01, 0.001]
+T_list = [100, 1.0, 0.01, 0.001]
+
+rho = np.ones(N) / N
+print("hyperparameters used are:")
+print("parametrized:", parametrized)
+print("eps_list:", eps_list)
+print("gamma_list:", gamma_list)
+print("zeta_list:", zeta_list)
+print("T_list:", T_list)
+print("D_model:", D_MODEL)
+print("N_layers:", N_LAYERS)
+print("N_heads:", N_HEADS)
+print("D_ff:", D_FF)
+print("dropout:", DROPOUT)
+print("EPOCHS_DBAR:", EPOCHS_DBAR)
+print("BATCH_SIZE_DBAR:", BATCH_SIZE_DBAR)
+print("NUM_SAMPLES_IN_BATCH_DBAR:", NUM_SAMPLES_IN_BATCH_DBAR)
+print("LR_DBAR:", LR_DBAR)
+print("WEIGHT_DECAY_DBAR:", WEIGHT_DECAY_DBAR)
+print("TOL_TRAIN_DBAR:", TOL_TRAIN_DBAR)
+print("EPOCHS_TRAIN_Y:", EPOCHS_TRAIN_Y)
+print("BATCH_SIZE_TRAIN_Y:", BATCH_SIZE_TRAIN_Y)
+print("LR_TRAIN_Y:", LR_TRAIN_Y)
+print("WEIGHT_DECAY_TRAIN_Y:", WEIGHT_DECAY_TRAIN_Y)
+print("TOL_TRAIN_Y:", TOL_TRAIN_Y)
+print("BETA_INIT:", BETA_INIT)
+print("BETA_F:", BETA_F)
+print("BETA_GROWTH_RATE:", BETA_GROWTH_RATE)
+print("PERTURBATION_STD:", PERTURBATION_STD)
+
 # ----------------------------------------------------------
 # MODEL INITIALIZATION
 model = ADEN(
@@ -67,13 +96,36 @@ model = ADEN(
 
 print(summary(model))
 # ----------------------------------------------------------
+# First obtain Y locations if transition probabilities were completely ignored
+env_ig = ClusteringEnvNumpy(
+    n_data=N,
+    n_clusters=M,
+    n_features=d,
+    parametrized=False,
+    eps=None,
+    gamma=None,
+    zeta=None,
+    T=None,
+    T_p=None,
+)
+
+Y_ig, pi_ig, _, _, _ = cluster_gt(
+    X_np,
+    Y_np,
+    rho,
+    env_ig,
+    beta_min=BETA_INIT,
+    beta_max=BETA_F,
+    tau=BETA_GROWTH_RATE,
+)
+print("\033[94mResults without transition probabilities obtained.\033[0m")
 # LOOPING OVER SCENARIOS
 for eps in eps_list:
     for gamma in gamma_list:
         for zeta in zeta_list:
             for T in T_list:
-                scenario_name = f"Benchmark_N{N}_M{M}_d{d}_betaMin{BETA_INIT}_betaMax{BETA_F}_tau{BETA_GROWTH_RATE}_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
-                print("Scenario:", scenario_name)
+                scenario_name = f"Benchmark_parametrized{parametrized}_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
+                print("\033[93mScenario:", scenario_name, "\033[0m")
                 # FIRST GETTING GROUND TRUTH
                 env_np = ClusteringEnvNumpy(
                     n_data=N,
@@ -86,7 +138,7 @@ for eps in eps_list:
                     T=T,
                     T_p=T_P,
                 )
-                rho = np.ones(N) / N
+
                 Y_GT, pi_GT, _, _, _ = cluster_gt(
                     X_np,
                     Y_np,
@@ -96,7 +148,7 @@ for eps in eps_list:
                     beta_max=BETA_F,
                     tau=BETA_GROWTH_RATE,
                 )
-                print("Ground truth obtained.")
+                print("\033[92mGround truth obtained.\033[0m")
                 # THEN TRAINING ADEN
                 env_torch = ClusteringEnvTorch(
                     n_data=N,
@@ -135,14 +187,16 @@ for eps in eps_list:
                     beta_growth_rate=BETA_GROWTH_RATE,
                     perturbation_std=PERTURBATION_STD,
                 )
-                print("ADEN training completed.")
+                print("\033[92mADEN training completed.\033[0m")
                 # SAVING RESULTS of ground truth and ADEN
                 save_dict = {
                     "scenario_name": scenario_name,
                     "Y_GT": Y_GT,
                     "pi_GT": pi_GT,
                     "Y_opt": Y_opt.cpu().numpy(),
-                    "pi_opt": pi_opt.cpu().numpy(),
+                    "pi_opt": pi_opt,
+                    "Y_ig": Y_ig,
+                    "pi_ig": pi_ig,
                 }
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 with open(f"Benchmark/{scenario_name}_{timestamp}.pkl", "wb") as f:
@@ -150,10 +204,9 @@ for eps in eps_list:
                 print("Results saved.\n")
                 # RESETTING MODEL
                 model.reset_weights()
-                print("Model weights reset.\n")
+                print("\033[91mModel weights reset.\033[0m\n")
 # ----------------------------------------------------------
 print("All scenarios completed.")
 # ----------------------------------------------------------
 # Note: To run this benchmark, ensure that the "Benchmark" directory exists in the current working directory.
 # The benchmark results will be saved as pickle files in that directory.
-

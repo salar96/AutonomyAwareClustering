@@ -118,11 +118,11 @@ class ClusteringEnvNumpy:
             else:
                 prob = np.full(
                     (self.n_clusters, self.n_clusters, self.n_data),
-                    0.1 / (self.n_clusters - 1),
+                    0.0 / (self.n_clusters - 1),
                 )
                 for i in range(self.n_data):
                     for j in range(self.n_clusters):
-                        prob[j, j, i] = 0.9
+                        prob[j, j, i] = 1.0
         self.prob = prob
         return prob
 
