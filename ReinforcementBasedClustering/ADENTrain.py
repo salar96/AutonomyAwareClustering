@@ -568,8 +568,8 @@ def TrainDbar_Hybrid_vec(
     lr=1e-4,
     weight_decay=1e-5,
     tol=1e-6,
-    alpha=0.1,  # EMA smoothing factor
-    mc_samples=8,  # vectorized MC samples per datapoint (was L)
+    alpha=0.99,  # EMA smoothing factor
+    mc_samples=16,  # vectorized MC samples per datapoint (was L)
     perturbation_std=0.01,  # small noise added to Y each iteration
     epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
@@ -901,4 +901,4 @@ def TrainAnneal(
         beta *= beta_growth_rate
         # model.reset_weights()  # Reset model weights for each temperature
 
-    return Y, history_y_all, history_pi_all, Betas
+    return Y, pi, history_y_all, history_pi_all, Betas
