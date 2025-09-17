@@ -52,7 +52,7 @@ parametrized = True
 eps_list = [0.1, 0.3, 0.5, 0.7, 0.9]
 gamma_list = [0.0, 0.5]
 zeta_list = [0.5, 1.0]
-T_list = [100, 1.0, 0.01, 0.001]
+T_list = [100, 1.0, 0.01]
 
 rho = np.ones(N) / N
 print("hyperparameters used are:")
