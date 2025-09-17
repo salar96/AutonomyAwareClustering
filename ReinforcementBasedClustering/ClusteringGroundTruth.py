@@ -42,7 +42,7 @@ def compute_cluster_centers(X, rho, pi, p_l_given_ji, eps=1e-12):
     return Y
 
 
-def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5):
+def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=False):
     M = Y.shape[0]
     N = X.shape[0]
     beta = beta_min
@@ -66,6 +66,8 @@ def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5):
 
             counter += 1
             Y_old = Y.copy()
+        if verbose:
+            print(f"beta: {beta:.2f}, iterations: {counter}")
         Y_list.append(Y)
         pi_list.append(pi)
         Betas.append(beta)
