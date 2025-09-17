@@ -99,8 +99,9 @@ class ClusteringEnvNumpy:
 
             # exponentiate only off-diagonal terms
             u_masked = np.where(mask, u, np.inf)  # (k,j,i) with inf where k == j
-
-            exp_u = np.exp(-u_masked / self.T)
+            u_masked_mins = np.min(u_masked, axis=0, keepdims=True)  # (1,j,i)
+            # subtract mins for numerical stability
+            exp_u = np.exp(-(u_masked - u_masked_mins) / self.T)
 
             # softmax over k dimension, but only for k ≠ j
             denom = exp_u.sum(axis=0, keepdims=True)  # (1, j, i)

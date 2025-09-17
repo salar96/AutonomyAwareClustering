@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial.distance import cdist
-
+from scipy.optimize import minimize
 
 def compute_cluster_centers(X, rho, pi, p_l_given_ji, eps=1e-12):
     """
@@ -41,18 +41,39 @@ def compute_cluster_centers(X, rho, pi, p_l_given_ji, eps=1e-12):
 
     return Y
 
+def free_energy(X, Y, rho, env, beta):
+    M = Y.shape[0]
+    N = X.shape[0]
+    # update policy
+    p_l_given_ji = env.return_probabilities(X, Y)  # (M,M,N)
+    D = cdist(X, Y, "sqeuclidean", out=None)
+    D_bar = np.einsum("il,lji->ij", D, p_l_given_ji) # (N,M)
+    mins = np.min(D_bar, axis=1, keepdims=True) # (N,1)
+    # calculating free energy (with numerical trick to avoid log(0) issues)
+    F = -1/beta * np.log(np.sum(np.exp(-beta * (D_bar-mins)), axis=1, keepdims=True)) +  mins # (N,1)
+    F = np.sum(rho[:, None] * F) # scalar
+    return F
+
+def distortion(X, Y, rho, pi, env):
+    M = Y.shape[0]
+    N = X.shape[0]
+    # update policy
+    p_l_given_ji = env.return_probabilities(X, Y)  # (M,M,N)
+    D = cdist(X, Y, "sqeuclidean", out=None)
+    D_bar = np.einsum("il,lji->ij", D, p_l_given_ji) # (N,M)
+    D_avg = np.sum(rho[:, None] * np.sum(pi * D_bar, axis=1, keepdims=True)) # scalar
+    return D_avg
 
 def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=False):
     M = Y.shape[0]
     N = X.shape[0]
     beta = beta_min
-    Y_old = Y.copy() + 1e6
     Y_list = []
     pi_list = []
     Betas = []
     while beta <= beta_max:
-        counter = 0
-        while np.linalg.norm(Y - Y_old) / np.linalg.norm(Y_old) > 1e-6:
+        
+        for _ in range(100):
             # update policy
             p_l_given_ji = env.return_probabilities(X, Y)  # (M,M,N)
             D = cdist(X, Y, "sqeuclidean", out=None)
@@ -64,10 +85,46 @@ def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=
             # update cluster centers
             Y = compute_cluster_centers(X, rho, pi, p_l_given_ji, eps=1e-12)
 
-            counter += 1
-            Y_old = Y.copy()
+            
+        distortion_val = distortion(X, Y, rho, pi, env)
         if verbose:
-            print(f"beta: {beta:.2f}, iterations: {counter}")
+            print(f"beta: {beta:.2f}, distortion: {distortion_val:.4f}")
+        Y_list.append(Y)
+        pi_list.append(pi)
+        Betas.append(beta)
+        beta *= tau
+        Y += np.random.randn(M, 2) * 0.001  # Add small noise to avoid local minima
+    return Y, pi, Y_list, pi_list, Betas
+
+def cluster_gt_solver(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=False):
+    M = Y.shape[0]
+    N = X.shape[0]
+    d = X.shape[1]
+    beta = beta_min
+
+    Y_list = []
+    pi_list = []
+    Betas = []
+    while beta <= beta_max:
+      
+        # use scipy optimize to minimize free enrgy with respect to Y
+
+        def objective(Y_flat):
+            Y = Y_flat.reshape(M, d)
+            return free_energy(X, Y, rho, env, beta)
+
+        # Define bounds to keep values in the unit box [0,1]
+        bounds = [(0, 1) for _ in range(M * d)]
+        
+        # Use L-BFGS-B method which supports bounds
+        res = minimize(objective, Y.flatten(), method="powell", bounds=bounds)
+        Y = res.x.reshape(M, d)
+        distances = cdist(X, Y, "sqeuclidean")
+        pi = np.exp(-beta * (distances - np.min(distances, axis=1, keepdims=True)))
+        pi /= np.sum(pi, axis=1, keepdims=True)
+        distortion_val = distortion(X, Y, rho, pi, env)
+        if verbose:
+            print(f"beta: {beta:.2f}, distortion: {distortion_val:.4f}")
         Y_list.append(Y)
         pi_list.append(pi)
         Betas.append(beta)
