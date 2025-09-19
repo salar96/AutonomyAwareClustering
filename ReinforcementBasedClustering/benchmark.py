@@ -23,10 +23,10 @@ Y_np = Y.cpu().numpy()
 # ----------------------------------------------------------
 # HYPERPARAMETERS
 INPUT_DIM = d  # dimensionality of the input space
-D_MODEL = 64  # dimensionality of the model
+D_MODEL = 128  # dimensionality of the model
 N_LAYERS = 4  # number of layers
 N_HEADS = 8  # number of attention heads
-D_FF = 128  # dimensionality of the feedforward network
+D_FF = 256  # dimensionality of the feedforward network
 DROPOUT = 0.01  # dropout rate
 
 EPOCHS_DBAR = 1000
