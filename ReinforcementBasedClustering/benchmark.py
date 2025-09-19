@@ -51,7 +51,7 @@ PERTURBATION_STD = 0.01
 parametrized = True
 eps_list = [0.1, 0.3, 0.5, 0.7, 0.9]
 gamma_list = [0.0, 0.5]
-zeta_list = [0.5, 1.0]
+zeta_list = [1.0, 0.5]
 T_list = [100, 1.0, 0.01]
 
 rho = np.ones(N) / N
@@ -121,90 +121,90 @@ Y_ig, pi_ig, _, _, _ = cluster_gt(
 print("\033[94mResults without transition probabilities obtained.\033[0m")
 # LOOPING OVER SCENARIOS
 for eps in eps_list:
-    for gamma in gamma_list:
-        for zeta in zeta_list:
-            for T in T_list:
-                scenario_name = f"Benchmark_parametrized{parametrized}_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
-                print("\033[93mScenario:", scenario_name, "\033[0m")
-                # FIRST GETTING GROUND TRUTH
-                env_np = ClusteringEnvNumpy(
-                    n_data=N,
-                    n_clusters=M,
-                    n_features=d,
-                    parametrized=parametrized,
-                    eps=eps,
-                    gamma=gamma,
-                    zeta=zeta,
-                    T=T,
-                    T_p=T_P,
-                )
+    for idx, gamma in enumerate(gamma_list):
+        zeta = zeta_list[idx]  # pairing zeta with gamma
+        for T in T_list:
+            scenario_name = f"Benchmark_parametrized{parametrized}_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
+            print("\033[93mScenario:", scenario_name, "\033[0m")
+            # FIRST GETTING GROUND TRUTH
+            env_np = ClusteringEnvNumpy(
+                n_data=N,
+                n_clusters=M,
+                n_features=d,
+                parametrized=parametrized,
+                eps=eps,
+                gamma=gamma,
+                zeta=zeta,
+                T=T,
+                T_p=T_P,
+            )
 
-                Y_GT, pi_GT, _, _, _ = cluster_gt(
-                    X_np,
-                    Y_np,
-                    rho,
-                    env_np,
-                    beta_min=BETA_INIT,
-                    beta_max=BETA_F,
-                    tau=BETA_GROWTH_RATE,
-                )
-                print("\033[92mGround truth obtained.\033[0m")
-                # THEN TRAINING ADEN
-                env_torch = ClusteringEnvTorch(
-                    n_data=N,
-                    n_clusters=M,
-                    n_features=d,
-                    parametrized=parametrized,
-                    eps=eps,
-                    gamma=gamma,
-                    zeta=zeta,
-                    T=T,
-                    T_p=torch.tensor(T_P),
-                    device=device,
-                )
-                Y_opt, pi_opt, _, _, _ = TrainAnneal(
-                    model,
-                    X,
-                    Y.clone(),
-                    env_torch,
-                    device,
-                    # TrainDbar hyperparameters
-                    epochs_dbar=EPOCHS_DBAR,
-                    batch_size_dbar=BATCH_SIZE_DBAR,
-                    num_samples_in_batch_dbar=NUM_SAMPLES_IN_BATCH_DBAR,
-                    lr_dbar=LR_DBAR,
-                    weight_decay_dbar=WEIGHT_DECAY_DBAR,
-                    tol_train_dbar=TOL_TRAIN_DBAR,
-                    # trainY hyperparameters
-                    epochs_train_y=EPOCHS_TRAIN_Y,
-                    batch_size_train_y=BATCH_SIZE_TRAIN_Y,
-                    lr_train_y=LR_TRAIN_Y,
-                    weight_decay_train_y=WEIGHT_DECAY_TRAIN_Y,
-                    tol_train_y=TOL_TRAIN_Y,
-                    # annealing schedule
-                    beta_init=BETA_INIT,
-                    beta_final=BETA_F,
-                    beta_growth_rate=BETA_GROWTH_RATE,
-                    perturbation_std=PERTURBATION_STD,
-                )
-                print("\033[92mADEN training completed.\033[0m")
-                # SAVING RESULTS of ground truth and ADEN
-                save_dict = {
-                    "scenario_name": scenario_name,
-                    "Y_GT": Y_GT,
-                    "pi_GT": pi_GT,
-                    "Y_opt": Y_opt.cpu().numpy(),
-                    "pi_opt": pi_opt,
-                    "Y_ig": Y_ig,
-                    "pi_ig": pi_ig,
-                }
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                with open(f"Benchmark/{scenario_name}_{timestamp}.pkl", "wb") as f:
-                    pickle.dump(save_dict, f)
-                print("Results saved.\n")
-                # RESETTING MODEL
-                model.reset_weights()
-                print("\033[91mModel weights reset.\033[0m\n")
+            Y_GT, pi_GT, _, _, _ = cluster_gt(
+                X_np,
+                Y_np,
+                rho,
+                env_np,
+                beta_min=BETA_INIT,
+                beta_max=BETA_F,
+                tau=BETA_GROWTH_RATE,
+            )
+            print("\033[92mGround truth obtained.\033[0m")
+            # THEN TRAINING ADEN
+            env_torch = ClusteringEnvTorch(
+                n_data=N,
+                n_clusters=M,
+                n_features=d,
+                parametrized=parametrized,
+                eps=eps,
+                gamma=gamma,
+                zeta=zeta,
+                T=T,
+                T_p=torch.tensor(T_P),
+                device=device,
+            )
+            Y_opt, pi_opt, _, _, _ = TrainAnneal(
+                model,
+                X,
+                Y.clone(),
+                env_torch,
+                device,
+                # TrainDbar hyperparameters
+                epochs_dbar=EPOCHS_DBAR,
+                batch_size_dbar=BATCH_SIZE_DBAR,
+                num_samples_in_batch_dbar=NUM_SAMPLES_IN_BATCH_DBAR,
+                lr_dbar=LR_DBAR,
+                weight_decay_dbar=WEIGHT_DECAY_DBAR,
+                tol_train_dbar=TOL_TRAIN_DBAR,
+                # trainY hyperparameters
+                epochs_train_y=EPOCHS_TRAIN_Y,
+                batch_size_train_y=BATCH_SIZE_TRAIN_Y,
+                lr_train_y=LR_TRAIN_Y,
+                weight_decay_train_y=WEIGHT_DECAY_TRAIN_Y,
+                tol_train_y=TOL_TRAIN_Y,
+                # annealing schedule
+                beta_init=BETA_INIT,
+                beta_final=BETA_F,
+                beta_growth_rate=BETA_GROWTH_RATE,
+                perturbation_std=PERTURBATION_STD,
+            )
+            print("\033[92mADEN training completed.\033[0m")
+            # SAVING RESULTS of ground truth and ADEN
+            save_dict = {
+                "scenario_name": scenario_name,
+                "Y_GT": Y_GT,
+                "pi_GT": pi_GT,
+                "Y_opt": Y_opt.cpu().numpy(),
+                "pi_opt": pi_opt,
+                "Y_ig": Y_ig,
+                "pi_ig": pi_ig,
+            }
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            with open(f"Benchmark/{scenario_name}_{timestamp}.pkl", "wb") as f:
+                pickle.dump(save_dict, f)
+            print("Results saved.\n")
+            # RESETTING MODEL
+            model.reset_weights()
+            print("\033[91mModel weights reset.\033[0m\n")
 # ----------------------------------------------------------
 print("All scenarios completed.")
 # ----------------------------------------------------------
