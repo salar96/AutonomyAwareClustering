@@ -3,13 +3,22 @@ import numpy as np
 from matplotlib import animation
 
 
-def PlotClustering(X, Y_final, pi_star, figsize=(6, 4), save_path=None):
+def PlotClustering(
+    X,
+    Y_final,
+    pi_star,
+    figsize=(6, 4),
+    cmap="tab10",
+    point_size=30,
+    centroid_size=300,
+    save_path=None,
+):
     N = X.shape[0]
     M = Y_final.shape[0]
     plt.figure(figsize=figsize, facecolor="#FFFFFF", edgecolor="#000000")
 
     # Create a colormap with M distinct colors
-    colors = plt.cm.tab10(np.linspace(0, 1, M))  # Use tab10 for distinct colors
+    colors = plt.cm.get_cmap(cmap)(np.linspace(0, 1, M))  # Use the provided cmap parameter
 
     # For each data point, compute its color based on cluster assignment probabilities
     data_colors = np.zeros((N, 4))  # RGBA colors
@@ -23,7 +32,7 @@ def PlotClustering(X, Y_final, pi_star, figsize=(6, 4), save_path=None):
         X[:, 1],
         c=data_colors,
         marker="o",
-        s=30,  # Slightly larger points
+        s=point_size,  # Slightly larger points
         edgecolors="black",
         linewidths=0.5,  # Thinner edges
         alpha=0.7,
@@ -37,7 +46,7 @@ def PlotClustering(X, Y_final, pi_star, figsize=(6, 4), save_path=None):
             Y_final[j, 1],
             color=colors[j],
             marker="*",
-            s=300,  # Larger centroids
+            s=centroid_size,  # Larger centroids
             edgecolors="black",
             linewidths=1.5,
             label=f"Centroid {j+1}" if j == 0 else "",

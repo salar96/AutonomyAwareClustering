@@ -166,10 +166,10 @@ class ADEN(nn.Module):
             nn.Linear(d_model * 2, d_model),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(d_model, 256),
+            nn.Linear(d_model, d_model // 2),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(256, 1),
+            nn.Linear(d_model // 2, 1),
         ).to(device)
 
         # Temperature parameter for distance scaling
@@ -234,7 +234,7 @@ class ADEN(nn.Module):
         for block in self.blocks:
             data_emb = block(data_emb, cluster_emb)
 
-        data_emb = self.output_norm(data_emb)
+        # data_emb = self.output_norm(data_emb)
 
         # Compute pairwise features for distance prediction
         data_expanded = data_emb.unsqueeze(2).expand(-1, -1, M, -1)
