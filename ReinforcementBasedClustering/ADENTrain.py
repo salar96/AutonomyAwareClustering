@@ -568,7 +568,7 @@ def TrainDbar_Hybrid_vec(
     lr=1e-4,
     weight_decay=1e-5,
     tol=1e-6,
-    alpha=0.99,  # EMA smoothing factor
+    alpha=0.95,  # EMA smoothing factor
     mc_samples=16,  # vectorized MC samples per datapoint (was L)
     perturbation_std=0.01,  # small noise added to Y each iteration
     epsilon=0.1,  # epsilon-greedy exploration
