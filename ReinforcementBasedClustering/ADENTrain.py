@@ -568,8 +568,8 @@ def TrainDbar_Hybrid_vec(
     lr=1e-4,
     weight_decay=1e-5,
     tol=1e-6,
-    alpha=0.95,  # EMA smoothing factor
-    mc_samples=16,  # vectorized MC samples per datapoint (was L)
+    lambda_=0.95,  # EMA smoothing factor
+    mc_samples=16,  # vectorized Monte-Carlo samples per datapoint (was L)
     perturbation_std=0.01,  # small noise added to Y each iteration
     epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
@@ -661,7 +661,7 @@ def TrainDbar_Hybrid_vec(
 
         avg_updates = updates / (counts + 1e-8)
         mask = counts > 0
-        running_D[mask] = (1 - alpha) * running_D[mask] + alpha * avg_updates[mask]
+        running_D[mask] = (1 - lambda_) * running_D[mask] + lambda_ * avg_updates[mask]
 
         # --- Vectorized target construction from running averages ---
         targets = running_D[batch_indices_all, idx]  # (B, S)
