@@ -4,60 +4,37 @@ from matplotlib import animation
 
 
 def PlotClustering(
-    X,
-    Y_final,
-    pi_star,
-    figsize=(6, 4),
-    cmap="tab10",
-    point_size=30,
-    centroid_size=300,
-    save_path=None,
+    X, Y_final, pi_star,
+    figsize=(6, 4), cmap="tab10",
+    point_size=30, centroid_size=300,
+    save_path=None
 ):
-    N = X.shape[0]
-    M = Y_final.shape[0]
-    plt.figure(figsize=figsize, facecolor="#FFFFFF", edgecolor="#000000")
+    # --- sort by angle around (0.5,0.5) ---
+    ref = np.array([0.5, 0.5])
+    angles = np.arctan2(Y_final[:,1] - ref[1], Y_final[:,0] - ref[0])
+    angles = (angles + 2*np.pi) % (2*np.pi)  # 0..2π
+    order = np.argsort(angles)
+    Y_final = Y_final[order]
+    pi_star = pi_star[:, order]
+    # ---------------------------------------
 
-    # Create a colormap with M distinct colors
-    colors = plt.cm.get_cmap(cmap)(np.linspace(0, 1, M))  # Use the provided cmap parameter
+    N, M = X.shape[0], Y_final.shape[0]
+    plt.figure(figsize=figsize, facecolor="white")
 
-    # For each data point, compute its color based on cluster assignment probabilities
-    data_colors = np.zeros((N, 4))  # RGBA colors
-    for i in range(N):
-        for j in range(M):
-            data_colors[i] += pi_star[i, j] * colors[j]
-    data_colors = np.clip(data_colors, 0, 1, out=data_colors)
-    # Plot data points with their weighted colors
-    plt.scatter(
-        X[:, 0],
-        X[:, 1],
-        c=data_colors,
-        marker="o",
-        s=point_size,  # Slightly larger points
-        edgecolors="black",
-        linewidths=0.5,  # Thinner edges
-        alpha=0.7,
-        label="Data points",
-    )
+    colors = plt.cm.get_cmap(cmap)(np.linspace(0, 1, M))
+    data_colors = np.clip(pi_star @ colors, 0, 1)
 
-    # Plot centroids with distinct markers and colors
+    plt.scatter(X[:,0], X[:,1], c=data_colors,
+                s=point_size, edgecolors="black",
+                linewidths=0.5, alpha=0.7)
+
     for j in range(M):
-        plt.scatter(
-            Y_final[j, 0],
-            Y_final[j, 1],
-            color=colors[j],
-            marker="*",
-            s=centroid_size,  # Larger centroids
-            edgecolors="black",
-            linewidths=1.5,
-            label=f"Centroid {j+1}" if j == 0 else "",
-        )
+        plt.scatter(Y_final[j,0], Y_final[j,1],
+                    color=colors[j], marker="*",
+                    s=centroid_size, edgecolors="black", linewidths=1.5)
 
-    # Add a legend for the first centroid only to avoid duplicate legend entries
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    # plt.legend(by_label.values(), by_label.keys())
     plt.gca().set_aspect("equal", "box")
     plt.axis("off")
-    if save_path is not None:
+    if save_path:
         plt.savefig(save_path, dpi=400, bbox_inches="tight")
     plt.show()
