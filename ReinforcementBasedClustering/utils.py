@@ -6,7 +6,7 @@ from scipy.spatial.distance import cdist
 
 def d_t(x, y):
     """
-    Squared Euclidean distance (scaled by 0.5) between batched x and y.
+    Squared Euclidean distance between batched x and y.
 
     Args:
         x: Tensor (..., input_dim)
@@ -14,7 +14,7 @@ def d_t(x, y):
     Returns:
         Tensor (...)  # one distance per pair
     """
-    return 0.5 * torch.sum((x - y) ** 2, dim=-1)
+    return  torch.sum((x - y) ** 2, dim=-1)
 
 
 def set_seed(seed: int = 42):

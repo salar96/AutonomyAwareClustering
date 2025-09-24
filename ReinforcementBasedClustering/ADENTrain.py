@@ -849,7 +849,7 @@ def TrainAnneal(
         # Perturb Y
         # Y = Y + torch.randn(M, input_dim, device=device) * perturbation_std
         # Assigning epsilon for epsilon-greedy based on temperature beta
-        epsilon = max(0.1, 1.0 / (beta + 1.0))
+        epsilon = max(0.1, 1.0 / torch.log(torch.tensor(beta) + 1.0))
         # --- TrainDbar ---
         TrainDbar_Hybrid_vec(
             model,
@@ -899,6 +899,7 @@ def TrainAnneal(
         Betas.append(beta)
         # Increase beta
         beta *= beta_growth_rate
+        Y += torch.randn_like(Y) * 0.001  # Add small noise to avoid local minima
         # model.reset_weights()  # Reset model weights for each temperature
 
     return Y, pi, history_y_all, history_pi_all, Betas

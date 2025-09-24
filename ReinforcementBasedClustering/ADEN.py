@@ -198,7 +198,7 @@ class ADEN(nn.Module):
 
         # Squared Euclidean distance
         diff = data_expanded - centers_expanded  # (batch_size, N, M, d)
-        base_distances = 0.5 * torch.sum(diff**2, dim=-1)  # (batch_size, N, M)
+        base_distances =  torch.sum(diff**2, dim=-1)  # (batch_size, N, M)
 
         return base_distances
 
