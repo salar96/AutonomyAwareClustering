@@ -133,7 +133,12 @@ for eps in eps_list:
     for idx, gamma in enumerate(gamma_list):
         zeta = zeta_list[idx]  # pairing zeta with gamma
         for T in T_list:
-            scenario_name = f"Benchmark_UDT_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
+            scenario_name = f"UDT_M{M}"
+            scenario_name += f"eps{eps}gam{gamma}zet{zeta}T{T}"
+            scenario_name += f"D{D_MODEL}_L{N_LAYERS}_H{N_HEADS}_FF{D_FF}_DO{DROPOUT}_"
+            scenario_name += f"EpD{EPOCHS_DBAR}BSD{BATCH_SIZE_DBAR}NSD{NUM_SAMPLES_IN_BATCH_DBAR}LRD{LR_DBAR}"
+            scenario_name += f"EpY{EPOCHS_TRAIN_Y}LRY{LR_TRAIN_Y}"
+            scenario_name += f"_{BETA_INIT}to{BETA_F}rate{BETA_GROWTH_RATE}_Pert{PERTURBATION_STD}"
             print("\033[93mScenario:", scenario_name, "\033[0m")
             
             # THEN TRAINING ADEN
@@ -184,8 +189,7 @@ for eps in eps_list:
                 "Y_ig": Y_ig,
                 "pi_ig": pi_ig,
             }
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            with open(f"BenchmarkUDT/{scenario_name}_{timestamp}.pkl", "wb") as f:
+            with open(f"BenchmarkUDT/{scenario_name}.pkl", "wb") as f:
                 pickle.dump(save_dict, f)
             print("Results saved.\n")
             # RESETTING MODEL
