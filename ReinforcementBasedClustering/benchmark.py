@@ -23,10 +23,10 @@ Y_np = Y.cpu().numpy()
 # ----------------------------------------------------------
 # HYPERPARAMETERS
 INPUT_DIM = d  # dimensionality of the input space
-D_MODEL = 128  # dimensionality of the model
+D_MODEL = 64  # dimensionality of the model
 N_LAYERS = 4  # number of layers
 N_HEADS = 8  # number of attention heads
-D_FF = 256  # dimensionality of the feedforward network
+D_FF = 128  # dimensionality of the feedforward network
 DROPOUT = 0.01  # dropout rate
 
 EPOCHS_DBAR = 1000
@@ -44,15 +44,15 @@ WEIGHT_DECAY_TRAIN_Y = 1e-5
 TOL_TRAIN_Y = 1e-4
 
 BETA_INIT = 10.0
-BETA_F = 10000.0
+BETA_F = 50000.0
 BETA_GROWTH_RATE = 1.1
 PERTURBATION_STD = 0.01
 
 parametrized = True
-eps_list = [0.1, 0.3, 0.5, 0.7, 0.9]
+eps_list = [0.1, 0.2, 0.3, 0.4, 0.5]
 gamma_list = [0.0, 0.5]
-zeta_list = [1.0, 0.5]
-T_list = [100, 1.0, 0.01]
+zeta_list = [1.0, 1.0]
+T_list = [100.0, 0.01]
 
 rho = np.ones(N) / N
 print("hyperparameters used are:")
