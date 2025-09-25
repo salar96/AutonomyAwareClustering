@@ -32,13 +32,13 @@ Y_np = Y.cpu().numpy()
 # ----------------------------------------------------------
 # HYPERPARAMETERS
 INPUT_DIM = d  # dimensionality of the input space
-D_MODEL = 128  # dimensionality of the model
+D_MODEL = 64  # dimensionality of the model
 N_LAYERS = 4  # number of layers
 N_HEADS = 8  # number of attention heads
-D_FF = 256  # dimensionality of the feedforward network
+D_FF = 128  # dimensionality of the feedforward network
 DROPOUT = 0.01  # dropout rate
 
-EPOCHS_DBAR = 1000
+EPOCHS_DBAR = 2000
 BATCH_SIZE_DBAR = 32
 NUM_SAMPLES_IN_BATCH_DBAR = 128
 LR_DBAR = 1e-4
@@ -58,10 +58,10 @@ BETA_GROWTH_RATE = 1.1
 PERTURBATION_STD = 0.01
 
 parametrized = True
-eps_list = [0.1, 0.2, 0.3, 0.4, 0.5]
+eps_list = [0.4,]
 gamma_list = [0.0,]
 zeta_list = [1.0,]
-T_list = [100, 1, 0.01]
+T_list = [0.01]
 
 rho = np.ones(N) / N
 print("hyperparameters used are:")
@@ -140,7 +140,29 @@ for eps in eps_list:
             scenario_name += f"EpY{EPOCHS_TRAIN_Y}LRY{LR_TRAIN_Y}"
             scenario_name += f"_{BETA_INIT}to{BETA_F}rate{BETA_GROWTH_RATE}_Pert{PERTURBATION_STD}"
             print("\033[93mScenario:", scenario_name, "\033[0m")
-            
+            # FIRST GETTING GROUND TRUTH
+            env_np = ClusteringEnvNumpy(
+                n_data=N,
+                n_clusters=M,
+                n_features=d,
+                parametrized=parametrized,
+                eps=eps,
+                gamma=gamma,
+                zeta=zeta,
+                T=T,
+                T_p=T_P,
+            )
+
+            Y_GT, pi_GT, _, _, _ = cluster_gt(
+                X_np,
+                Y_np,
+                rho,
+                env_np,
+                beta_min=BETA_INIT,
+                beta_max=BETA_F,
+                tau=BETA_GROWTH_RATE,
+            )
+            print("\033[92mGround truth obtained.\033[0m")
             # THEN TRAINING ADEN
             env_torch = ClusteringEnvTorch(
                 n_data=N,
@@ -154,7 +176,7 @@ for eps in eps_list:
                 T_p=torch.tensor(T_P),
                 device=device,
             )
-            Y_opt, pi_opt, _, _, _ = TrainAnneal(
+            Y_opt, pi_opt, h_y_opt, h_pi_opt, betas = TrainAnneal(
                 model,
                 X,
                 Y.clone(),
@@ -183,9 +205,13 @@ for eps in eps_list:
             # SAVING RESULTS of ground truth and ADEN
             save_dict = {
                 "scenario_name": scenario_name,
-                "X": X_np,
+                "Y_GT": Y_GT,
+                "pi_GT": pi_GT,
                 "Y_opt": Y_opt.cpu().numpy(),
                 "pi_opt": pi_opt,
+                "h_y_opt": h_y_opt,
+                "h_pi_opt": h_pi_opt,
+                "betas": betas,
                 "Y_ig": Y_ig,
                 "pi_ig": pi_ig,
             }
