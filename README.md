@@ -157,7 +157,9 @@ $u_k(j,i) = ζ·d(j,k) + γ·d(i,k)$
 
 $p(k|j,i) = ε·softmax(-u_k/T) \quad if \quad  k≠j, \quad else \ (1-ε)$
 
-### Analytical Ground Truh
+### Analytical Ground Truth
+The ground truth optimal assignments and centroids are given by:
+
 $\pi_{Y}^{\beta}(j|i) 
 = \mathrm{softmax}_j\!\big(-\beta\, d_{\mathrm{avg}}(x_i,y_j)\big) 
 = \frac{\exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_j)\}}{\sum_{\ell=1}^K \exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_\ell)\}},$
