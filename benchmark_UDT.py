@@ -16,7 +16,7 @@ utils.set_seed(0)  # for reproducibility
 
 # LOADING DATA
 import scipy
-address = f"MATLAB Codes/UTD19_London.mat"
+address = f"UTD19_London.mat"
 # read as numpy array
 data = scipy.io.loadmat(address)
 locs = data['Xz']
