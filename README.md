@@ -160,14 +160,16 @@ $p(k|j,i) = ε·softmax(-u_k/T) \quad if \quad  k≠j, \quad else \ (1-ε)$
 ### Analytical Ground Truth
 The ground truth optimal assignments and centroids are given by:
 
-$\pi_{Y}^{\beta}(j|i) 
-= \mathrm{softmax}_j\!\big(-\beta\, d_{\mathrm{avg}}(x_i,y_j)\big) 
-= \frac{\exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_j)\}}{\sum_{\ell=1}^K \exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_\ell)\}},$
+$$
+\pi_{Y}^{\beta}(j|i) = \mathrm{softmax}\big(-\beta d{\mathrm{avg}}(x_i,y_j)\big) = \frac{\exp{-\beta d_{\mathrm{avg}}(x_i,y_j)}}{\sum_{\ell=1}^K \exp{-\beta d_{\mathrm{avg}}(x_i,y_\ell)}}
+$$
 
-$y_{\ell} 
+$$
+y_{\ell} 
 = \frac{\sum_{i=1}^N \sum_{j=1}^K \rho(i)\, p(\ell|j,i)\, \pi_{Y}^{\beta}(j|i)\, x_i}
        {\sum_{i=1}^N \sum_{j=1}^K \rho(i)\, p(\ell|j,i)\, \pi_{Y}^{\beta}(j|i)},
-\quad \forall~1 \leq \ell \leq K.$
+\quad \forall~1 \leq \ell \leq K.
+$$
 ### Adaptive Distance Function
 ADEN enhances base distances with learned components:
 
