@@ -1,6 +1,6 @@
 # Autonomy-Aware Clustering
 
-A novel approach to clustering that combines **deep learning**, **reinforcement learning**, and **Markov Decision Processes** to learn adaptive distance metrics for improved clustering performance. The system uses an Adaptive Distance Estimation Network (ADEN) that learns context-aware distance functions through interaction with parametrized clustering environments.
+A novel approach to clustering that combines **deep learning**, **reinforcement learning**, and **Markov Decision Processes** to learn adaptive distance metrics for improved clustering performance under local autonomy. The system uses an Adaptive Distance Estimation Network (ADEN) that learns context-aware distance functions through interaction with parametrized clustering environments.
 
 ## 🎯 Key Features
 
@@ -11,6 +11,7 @@ A novel approach to clustering that combines **deep learning**, **reinforcement 
 - **Comprehensive Benchmarking**: Systematic comparison against analytical ground truth solutions
 
 ![Phase Transition Animation](Phase_Transition.gif)
+
 *Example: Phase transition behavior during β-annealing showing cluster formation and refinement*
 
 ## 🏗️ Architecture Overview
@@ -33,7 +34,7 @@ A novel approach to clustering that combines **deep learning**, **reinforcement 
    - **TrainAnneal**: Coordinated annealing schedule with β parameter growth
 
 4. **Ground Truth Solver** (`ClusteringGroundTruth.py`):
-   - Analytical solutions for clustering optimization
+   - Analytical solutions for clustering optimization when local autonomy is known
    - Reference implementations for benchmarking
    - Free energy minimization with scipy optimization
 
@@ -116,7 +117,7 @@ python benchmark_UDT.py
 Use the provided Jupyter notebooks for experimentation:
 
 ```bash
-# Main training notebook with real-world data
+# Main training notebook with synthetic and real-world data
 jupyter notebook DeepClusteringParametrized.ipynb
 
 # Classical RL comparison
@@ -151,23 +152,32 @@ jupyter notebook Clustering_GT.ipynb
 
 ### Transition Probabilities
 The environment computes cluster transition probabilities:
-```
-u_k(j,i) = ζ·d(j,k) + γ·d(i,k)
-p(k|j,i) = ε·softmax(-u_k/T) if k≠j, else (1-ε)
-```
 
+$u_k(j,i) = ζ·d(j,k) + γ·d(i,k)$
+
+$p(k|j,i) = ε·softmax(-u_k/T) \quad if \quad  k≠j, \quad else \ (1-ε)$
+
+### Analytical Ground Truh
+$\pi_{Y}^{\beta}(j|i) 
+= \mathrm{softmax}_j\!\big(-\beta\, d_{\mathrm{avg}}(x_i,y_j)\big) 
+= \frac{\exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_j)\}}{\sum_{\ell=1}^K \exp\{-\beta\, d_{\mathrm{avg}}(x_i,y_\ell)\}},$
+
+$y_{\ell} 
+= \frac{\sum_{i=1}^N \sum_{j=1}^K \rho(i)\, p(\ell|j,i)\, \pi_{Y}^{\beta}(j|i)\, x_i}
+       {\sum_{i=1}^N \sum_{j=1}^K \rho(i)\, p(\ell|j,i)\, \pi_{Y}^{\beta}(j|i)},
+\quad \forall~1 \leq \ell \leq K.$
 ### Adaptive Distance Function
 ADEN enhances base distances with learned components:
-```
-d_adaptive(i,k) = ||x_i - y_k||² + τ·neural_deviation(x_i, y_k)
-```
 
+$d_{adaptive}(i,k) = ||x_i - y_k||² + τ\bar{d}(x_i, y_k)$
+
+where $\bar{d}(x_i, y_k)$ is the output of the ADEN network
 ### Annealing Schedule
 Progressive sharpening of cluster assignments:
-```
-β ← β × τ  (multiplicative growth)
-Y ← Y + η·∇F_β(Y)  (gradient descent on free energy)
-```
+
+$β ← β × τ$  (multiplicative growth)
+$Y ← Y + η·∇F_β(Y)$  (gradient descent on free energy)
+
 
 ## 📁 Project Structure
 
@@ -215,7 +225,7 @@ PlotClustering(
 
 This framework has been applied to:
 - **Sensor Network Optimization**: UTD19 London sensor placement dataset
-- **Streaming User Clustering**: MovieLens-derived user behavior data
+
 - **Synthetic Benchmark Problems**: Multi-modal, multi-scale clustering scenarios
 - **Decentralized Systems**: Autonomous agent coordination and resource allocation
 
