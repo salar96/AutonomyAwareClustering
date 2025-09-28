@@ -85,7 +85,7 @@ Y = torch.mean(X, dim=0, keepdim=True).to(device) + 0.01 * torch.randn(M, d).to(
 # Create parametrized environment
 env = ClusteringEnvTorch(
     n_data=N, n_clusters=M, n_features=d,
-    parametrized=True, eps=0.4, gamma=0.0, zeta=1.0, T=0.01,
+    parametrized=True, kappa=0.4, gamma=0.0, zeta=1.0, T=0.01,
     device=device
 )
 
@@ -130,7 +130,7 @@ jupyter notebook Clustering_GT.ipynb
 ## 📊 Key Parameters
 
 ### Environment Parameters (Critical for Performance)
-- `eps`: Exploration probability (0.1-0.5) - controls transition randomness
+- `kappa`: Exploration probability (0.1-0.5) - controls transition randomness
 - `gamma`: Weight for data-cluster distances d(i,k) 
 - `zeta`: Weight for cluster-cluster distances d(j,k)
 - `T`: Softmax temperature - lower values = sharper transitions
@@ -155,7 +155,7 @@ The environment computes cluster transition probabilities:
 
 $u_k(j,i) = ζ·d(j,k) + γ·d(i,k)$
 
-$p(k|j,i) = ε·softmax(-u_k/T) \quad if \quad  k≠j, \quad else \ (1-ε)$
+$p(k|j,i) = κ·softmax(-u_k/T) \quad if \quad  k≠j, \quad else \ (1-κ)$
 
 ### Analytical Ground Truth
 The ground truth optimal assignments and centroids are given by:

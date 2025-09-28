@@ -58,7 +58,7 @@ BETA_GROWTH_RATE = 1.1
 PERTURBATION_STD = 0.01
 
 parametrized = True
-eps_list = [0.4,]
+kappa_list = [0.4,]
 gamma_list = [0.0,]
 zeta_list = [1.0,]
 T_list = [0.01]
@@ -66,7 +66,7 @@ T_list = [0.01]
 rho = np.ones(N) / N
 print("hyperparameters used are:")
 print("parametrized:", parametrized)
-print("eps_list:", eps_list)
+print("kappa_list:", kappa_list)
 print("gamma_list:", gamma_list)
 print("zeta_list:", zeta_list)
 print("T_list:", T_list)
@@ -111,7 +111,7 @@ env_ig = ClusteringEnvNumpy(
     n_clusters=M,
     n_features=d,
     parametrized=False,
-    eps=None,
+    kappa=None,
     gamma=None,
     zeta=None,
     T=None,
@@ -129,12 +129,12 @@ Y_ig, pi_ig, _, _, _ = cluster_gt(
 )
 print("\033[94mResults without transition probabilities obtained.\033[0m")
 # LOOPING OVER SCENARIOS
-for eps in eps_list:
+for kappa in kappa_list:
     for idx, gamma in enumerate(gamma_list):
         zeta = zeta_list[idx]  # pairing zeta with gamma
         for T in T_list:
             scenario_name = f"UDT_M{M}"
-            scenario_name += f"eps{eps}gam{gamma}zet{zeta}T{T}"
+            scenario_name += f"kappa{kappa}gam{gamma}zet{zeta}T{T}"
             scenario_name += f"D{D_MODEL}_L{N_LAYERS}_H{N_HEADS}_FF{D_FF}_DO{DROPOUT}_"
             scenario_name += f"EpD{EPOCHS_DBAR}BSD{BATCH_SIZE_DBAR}NSD{NUM_SAMPLES_IN_BATCH_DBAR}LRD{LR_DBAR}"
             scenario_name += f"EpY{EPOCHS_TRAIN_Y}LRY{LR_TRAIN_Y}"
@@ -146,7 +146,7 @@ for eps in eps_list:
                 n_clusters=M,
                 n_features=d,
                 parametrized=parametrized,
-                eps=eps,
+                kappa=kappa,
                 gamma=gamma,
                 zeta=zeta,
                 T=T,
@@ -169,7 +169,7 @@ for eps in eps_list:
                 n_clusters=M,
                 n_features=d,
                 parametrized=parametrized,
-                eps=eps,
+                kappa=kappa,
                 gamma=gamma,
                 zeta=zeta,
                 T=T,

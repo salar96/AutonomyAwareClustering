@@ -20,7 +20,7 @@ This codebase implements **Autonomy-Aware Clustering** using reinforcement learn
 
 ### Environment Parameters
 Critical hyperparameters defining clustering behavior:
-- `eps`: exploration probability (0.1-0.5 typical)
+- `kappa`: exploration probability (0.1-0.5 typical)
 - `gamma`: weight for data-cluster distances d(i,k) 
 - `zeta`: weight for cluster-cluster distances d(j,k)
 - `T`: softmax temperature controlling transition randomness
@@ -33,8 +33,8 @@ Two-phase annealing schedule in `TrainAnneal()`:
 3. **Beta Annealing**: Increase β (inverse temperature) to sharpen cluster assignments
 
 ### File Naming Patterns
-- Results saved with descriptive names: `Benchmark_parametrized{bool}_eps{val}_gamma{val}_zeta{val}_T{val}_{timestamp}.pkl`
-- Animations: `Clustering_GT_N{samples}_M{clusters}_d{dims}_betaMin{val}_betaMax{val}_tau{rate}_eps{val}_gamma{val}_zeta{val}_T{val}.gif`
+- Results saved with descriptive names: `Benchmark_parametrized{bool}_kappa{val}_gamma{val}_zeta{val}_T{val}_{timestamp}.pkl`
+- Animations: `Clustering_GT_N{samples}_M{clusters}_d{dims}_betaMin{val}_betaMax{val}_tau{rate}_kappa{val}_gamma{val}_zeta{val}_T{val}.gif`
 
 ## Development Workflows
 
@@ -83,7 +83,7 @@ adaptive_distances = base_distances + temperature * learned_deviations
 Environment computes p(k|j,i) based on utility functions:
 ```python
 u_k(j,i) = zeta * d(j,k) + gamma * d(i,k)  # cluster-cluster + data-cluster distances
-p(k|j,i) = eps * softmax(-u/T) if k≠j else (1-eps)  # exploration vs exploitation
+p(k|j,i) = kappa * softmax(-u/T) if k≠j else (1-kappa)  # exploration vs exploitation
 ```
 
 ### Annealing Schedule

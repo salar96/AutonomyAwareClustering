@@ -28,8 +28,8 @@ class ClusteringEnvNumpy:
         If False, fixed transition probabilities are used
     T_p : ndarray, optional, shape (n_clusters, n_clusters, n_data)
         Fixed transition probabilities when parametrized=False
-    eps : float, default=0.3
-        Exploration probability (epsilon) - probability of transitioning to a different cluster
+    kappa : float, default=0.3
+        Exploration probability (kappa) - probability of transitioning to a different cluster
     gamma : float, default=0.0
         Weight for data-cluster distances d(i,k) in utility function
     zeta : float, default=1.0
@@ -53,7 +53,7 @@ class ClusteringEnvNumpy:
         n_features,
         parametrized,
         T_p=None,
-        eps=0.3,
+        kappa=0.3,
         gamma=0.0,
         zeta=1.0,
         T=1.0,
@@ -64,7 +64,7 @@ class ClusteringEnvNumpy:
         self.n_clusters = n_clusters
         self.n_features = n_features
         self.parametrized = parametrized
-        self.eps = eps  # exploration probability (epsilon)
+        self.kappa = kappa  # exploration probability (kappa)
         self.gamma = gamma  # weight for d(i,k)
         self.zeta = zeta  # weight for d(j,k)
         self.T = T  # softmax temperature
@@ -106,12 +106,12 @@ class ClusteringEnvNumpy:
             # softmax over k dimension, but only for k ≠ j
             denom = exp_u.sum(axis=0, keepdims=True)  # (1, j, i)
 
-            # epsilon * normalized exp(-u/T) for k ≠ j
-            prob = np.where(mask, self.eps * exp_u / denom, 0.0)
+            # kappa * normalized exp(-u/T) for k ≠ j
+            prob = np.where(mask, self.kappa * exp_u / denom, 0.0)
 
-            # diagonal entries k == j get 1 - eps
+            # diagonal entries k == j get 1 - kappa
             diag = np.arange(self.n_clusters)
-            prob[diag, diag, :] = 1.0 - self.eps
+            prob[diag, diag, :] = 1.0 - self.kappa
 
         else:
             if self.T_p is not None:
@@ -148,7 +148,7 @@ class ClusteringEnvTorch:
         If False, fixed transition probabilities are used.
     T_p : torch.Tensor, optional, shape (n_clusters, n_clusters, n_data)
         Fixed transition probabilities when parametrized=False.
-    eps : float, default=0.3
+    kappa : float, default=0.3
         Exploration probability.
     gamma : float, default=0.0
         Weight for data-cluster distances d(i,k).
@@ -168,7 +168,7 @@ class ClusteringEnvTorch:
         n_features,
         parametrized,
         T_p=None,
-        eps=0.3,
+        kappa=0.3,
         gamma=0.0,
         zeta=1.0,
         T=1.0,
@@ -180,7 +180,7 @@ class ClusteringEnvTorch:
         self.n_clusters = n_clusters
         self.n_features = n_features
         self.parametrized = parametrized
-        self.eps = eps
+        self.kappa = kappa
         self.gamma = gamma
         self.zeta = zeta
         self.T = T
@@ -221,9 +221,9 @@ class ClusteringEnvTorch:
             exp_u = torch.exp(-(u_masked - u_masked_mins) / self.T)
             denom = exp_u.sum(dim=0, keepdim=True)  # (1, j, i)
 
-            prob = torch.where(mask, self.eps * exp_u / denom, torch.zeros_like(u))
+            prob = torch.where(mask, self.kappa * exp_u / denom, torch.zeros_like(u))
             diag = torch.arange(self.n_clusters, device=self.device)
-            prob[diag, diag, :] = 1.0 - self.eps
+            prob[diag, diag, :] = 1.0 - self.kappa
 
         else:
             if self.T_p is not None:

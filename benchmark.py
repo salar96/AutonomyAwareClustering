@@ -49,7 +49,7 @@ BETA_GROWTH_RATE = 1.1
 PERTURBATION_STD = 0.01
 
 parametrized = True
-eps_list = [0.1, 0.2, 0.3, 0.4, 0.5]
+kappa_list = [0.1, 0.2, 0.3, 0.4, 0.5]
 gamma_list = [0.0, 0.5]
 zeta_list = [1.0, 1.0]
 T_list = [100.0, 0.01]
@@ -57,7 +57,7 @@ T_list = [100.0, 0.01]
 rho = np.ones(N) / N
 print("hyperparameters used are:")
 print("parametrized:", parametrized)
-print("eps_list:", eps_list)
+print("kappa_list:", kappa_list)
 print("gamma_list:", gamma_list)
 print("zeta_list:", zeta_list)
 print("T_list:", T_list)
@@ -102,7 +102,7 @@ env_ig = ClusteringEnvNumpy(
     n_clusters=M,
     n_features=d,
     parametrized=False,
-    eps=None,
+    kappa=None,
     gamma=None,
     zeta=None,
     T=None,
@@ -120,11 +120,11 @@ Y_ig, pi_ig, _, _, _ = cluster_gt(
 )
 print("\033[94mResults without transition probabilities obtained.\033[0m")
 # LOOPING OVER SCENARIOS
-for eps in eps_list:
+for kappa in kappa_list:
     for idx, gamma in enumerate(gamma_list):
         zeta = zeta_list[idx]  # pairing zeta with gamma
         for T in T_list:
-            scenario_name = f"Benchmark_parametrized{parametrized}_eps{eps}_gamma{gamma}_zeta{zeta}_T{T}"
+            scenario_name = f"Benchmark_parametrized{parametrized}_kappa{kappa}_gamma{gamma}_zeta{zeta}_T{T}"
             print("\033[93mScenario:", scenario_name, "\033[0m")
             # FIRST GETTING GROUND TRUTH
             env_np = ClusteringEnvNumpy(
@@ -132,7 +132,7 @@ for eps in eps_list:
                 n_clusters=M,
                 n_features=d,
                 parametrized=parametrized,
-                eps=eps,
+                kappa=kappa,
                 gamma=gamma,
                 zeta=zeta,
                 T=T,
@@ -155,7 +155,7 @@ for eps in eps_list:
                 n_clusters=M,
                 n_features=d,
                 parametrized=parametrized,
-                eps=eps,
+                kappa=kappa,
                 gamma=gamma,
                 zeta=zeta,
                 T=T,
