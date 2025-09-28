@@ -251,7 +251,7 @@ If you use this code in your research, please cite:
 
 ```bibtex
 @article{autonomy_aware_clustering_2024,
-  title={Autonomy-Aware Clustering: Learning Adaptive Distance Metrics via Reinforcement Learning},
+  title={Autonomy-Aware Clustering},
   author={[Authors]},
   journal={[Journal]},
   year={2024}
