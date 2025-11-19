@@ -573,6 +573,7 @@ def TrainDbar_Hybrid_vec(
     perturbation_std=0.01,  # small noise added to Y each iteration
     epsilon=0.1,  # epsilon-greedy exploration
     verbose=False,
+    print_size=1000,
 ):
     """
     Vectorized hybrid TrainDbar:
@@ -596,6 +597,7 @@ def TrainDbar_Hybrid_vec(
     running_D = torch.zeros(N, M, device=device)
 
     prev_mse_loss = float("inf")
+    history = []  # record MSE loss at first step and every print_size steps
     for epoch in range(epochs + 1):
         # sample batches from X
         X_batches = torch.zeros(
@@ -674,26 +676,29 @@ def TrainDbar_Hybrid_vec(
         mask_pred.scatter_(2, idx.unsqueeze(2), 1)
         mse_loss = torch.sum((D[mask_pred] - predicted_distances[mask_pred]) ** 2)
 
-        if epoch % 1000 == 0 and verbose:
-            print(
-                f"[TrainDbar_Hybrid_vec] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}"
-            )
+
+        if print_size is not None and print_size > 0 and (epoch % print_size == 0):
+            history.append(mse_loss.item())
+            if verbose:
+                print(
+                    f"[TrainDbar_Hybrid_vec] Epoch {epoch}, MSE Loss: {mse_loss.item():.3e}"
+                )
 
         optimizer.zero_grad()
         mse_loss.backward()
         optimizer.step()
 
-        # stopping criterion
-        if (
-            epoch > 0
-            and abs(mse_loss.item() - prev_mse_loss) / (prev_mse_loss + 1e-12) < tol
-        ):
-            if verbose:
-                print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
-            break
-        prev_mse_loss = mse_loss.item()
+        # # stopping criterion
+        # if (
+        #     epoch > 0
+        #     and abs(mse_loss.item() - prev_mse_loss) / (prev_mse_loss + 1e-12) < tol
+        # ):
+        #     if verbose:
+        #         print(f"Converged at epoch {epoch}, MSE Loss: {mse_loss.item():.3e}")
+        #     break
+        # prev_mse_loss = mse_loss.item()
 
-    return
+    return history
 
 
 def trainY(
@@ -708,6 +713,7 @@ def trainY(
     max_epochs=10000,
     batch_size=None,
     verbose=True,
+    print_every=100
 ):
     """
     Optimize cluster centers Y while keeping model fixed.
@@ -774,15 +780,15 @@ def trainY(
 
             F_batch.backward(retain_graph=True if end < N else False)
             F_epoch += F_batch.item()
-
         optimizer_y.step()
         optimizer_y.zero_grad()
 
-        history.append(F_epoch)
+        
 
         # Logging
-        if verbose and epoch % 1000 == 0:
+        if verbose and epoch % print_every == 0:
             print(f"[trainY] Epoch {epoch}, F: {F_epoch:.3e}")
+            history.append(F_epoch)
 
         # Convergence check
         if abs(F_epoch - F_old) / (abs(F_old) + 1e-8) < tol:
@@ -819,6 +825,9 @@ def TrainAnneal(
     beta_final=10.0,
     beta_growth_rate=10.0,
     perturbation_std=0.01,
+    # logging
+    writer=None,
+    print_size=1000,
 ):
     """
     Run the annealing loop alternating TrainDbar and trainY.
@@ -851,7 +860,7 @@ def TrainAnneal(
         # Assigning epsilon for epsilon-greedy based on temperature beta
         epsilon = max(0.1, 1.0 / torch.log(torch.tensor(beta) + 1.0))
         # --- TrainDbar ---
-        TrainDbar_Hybrid_vec(
+        dbar_history = TrainDbar_Hybrid_vec(
             model,
             X,
             Y,
@@ -866,6 +875,7 @@ def TrainAnneal(
             perturbation_std=perturbation_std,
             epsilon=epsilon,
             verbose=True,
+            print_size=print_size,
         )
 
         # --- trainY ---
@@ -881,7 +891,15 @@ def TrainAnneal(
             max_epochs=epochs_train_y,
             batch_size=batch_size_train_y,
             verbose=True,
+            print_every=print_size,
         )
+        # tensorboard logging: record both histories for this beta (if writer provided)
+        if writer is not None:
+            beta_tag = f"{float(beta):.6f}"
+            for step_idx, loss in enumerate(dbar_history):
+                writer.add_scalar(f"dbar_loss/beta_{beta_tag}", loss, step_idx)
+            for step_idx, fval in enumerate(history_y):
+                writer.add_scalar(f"free_energy/beta_{beta_tag}", fval, step_idx)
         with torch.no_grad():
             D_s = model(X.unsqueeze(0), Y.unsqueeze(0))[0]
             d_mins = torch.min(D_s, dim=-1, keepdim=True).values
