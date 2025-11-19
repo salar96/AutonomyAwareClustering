@@ -154,7 +154,7 @@ def run_trial(
 
 def main():
     parser = argparse.ArgumentParser(description="ADEN sensitivity study over init and hyperparameters")
-    parser.add_argument("--runs_root", type=str, default="runs/sensitivity", help="TensorBoard log root")
+    parser.add_argument("--runs_root", type=str, default="runs/sensitivity/", help="TensorBoard log root")
     parser.add_argument("--seeds", type=int, nargs="*", default=[0, 1], help="Random seeds to try")
     parser.add_argument("--device", type=str, default="auto", help="cuda|cpu|auto")
     parser.add_argument("--print_size", type=int, default=10, help="Logging step interval")
@@ -172,30 +172,30 @@ def main():
 
     # environment grid (small by default)
     env_param_grid = [
-        {"kappa": 0.2, "gamma": 0.0, "zeta": 1.0, "T": 0.01, "T_P": T_P},
-        {"kappa": 0.5, "gamma": 0.0, "zeta": 1.0, "T": 0.01, "T_P": T_P},
+        {"kappa": 0.2, "gamma": 0.0, "zeta": 1.0, "T": 0.1, "T_P": T_P},
+        {"kappa": 0.5, "gamma": 0.0, "zeta": 1.0, "T": 0.1, "T_P": T_P},
     ]
 
     # model configs to sweep
     model_cfg_grid = [
         {"d_model": 64, "n_layers": 4, "n_heads": 8, "d_ff": 128, "dropout": 0.01},
-        {"d_model": 128, "n_layers": 6, "n_heads": 8, "d_ff": 256, "dropout": 0.10},
+        {"d_model": 128, "n_layers": 6, "n_heads": 8, "d_ff": 256, "dropout": 0.01},
     ]
 
     # training configs to sweep
     train_cfg_grid = [
         {
             # dbar
-            "epochs_dbar": 2,
+            "epochs_dbar": 5000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 1e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1,
+            "epochs_train_y": 1000,
             "batch_size_train_y": None,
-            "lr_train_y": 1e-3,
+            "lr_train_y": 1e-4,
             "weight_decay_train_y": 1e-5,
             "tol_train_y": 1e-6,
             # init
@@ -203,14 +203,48 @@ def main():
         },
         {
             # dbar
-            "epochs_dbar": 2,
+            "epochs_dbar": 5000,
+            "batch_size_dbar": 32,
+            "num_samples_in_batch_dbar": 128,
+            "lr_dbar": 1e-4,
+            "weight_decay_dbar": 1e-5,
+            "tol_train_dbar": 1e-6,
+            # y
+            "epochs_train_y": 1000,
+            "batch_size_train_y": None,
+            "lr_train_y": 1e-4,
+            "weight_decay_train_y": 1e-5,
+            "tol_train_y": 1e-6,
+            # init
+            "init_method": "sample",
+        },
+        {
+            # dbar
+            "epochs_dbar": 5000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 5e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1,
+            "epochs_train_y": 1000,
+            "batch_size_train_y": None,
+            "lr_train_y": 5e-4,
+            "weight_decay_train_y": 1e-5,
+            "tol_train_y": 1e-6,
+            # init
+            "init_method": "mean_noise",
+        },
+        {
+            # dbar
+            "epochs_dbar": 5000,
+            "batch_size_dbar": 32,
+            "num_samples_in_batch_dbar": 128,
+            "lr_dbar": 5e-4,
+            "weight_decay_dbar": 1e-5,
+            "tol_train_dbar": 1e-6,
+            # y
+            "epochs_train_y": 1000,
             "batch_size_train_y": None,
             "lr_train_y": 5e-4,
             "weight_decay_train_y": 1e-5,
@@ -223,11 +257,11 @@ def main():
     # annealing config (fixed defaults)
     anneal_cfg = {
         "beta_init": 10.0,
-        "beta_final": 22.0,
-        "beta_growth_rate": 2.0,
+        "beta_final": 10000.0,
+        "beta_growth_rate": 10.0,
         "perturbation_std": 0.01,
     }
-
+    simulation_time = datetime.now().strftime("/%Y%m%d_%H%M%S")
     # run all combos
     for env_cfg in env_param_grid:
         for seed in args.seeds:
@@ -242,7 +276,7 @@ def main():
                     train_cfg=train_cfg,
                     anneal_cfg=anneal_cfg,
                     seed=seed,
-                    run_root=args.runs_root,
+                    run_root=args.runs_root + simulation_time,
                     print_size=args.print_size,
                 )
 
