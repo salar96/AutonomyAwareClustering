@@ -90,7 +90,10 @@ def run_trial(
     )
     log_dir = os.path.join(run_root, run_name)
     writer = SummaryWriter(log_dir=log_dir)
-
+    writer.add_text("config/env", str(env_cfg))
+    writer.add_text("config/model", str({k: v for k, v in model_cfg.items() if k != 'device'}))
+    writer.add_text("config/train", str(train_cfg))
+    writer.add_text("config/anneal", str(anneal_cfg))
     # train
     Y_opt, pi_opt, history_y_all, history_pi_all, Betas = TrainAnneal(
         model=build_model(d, model_cfg),
@@ -144,10 +147,7 @@ def run_trial(
     dist_val = distortion(X_final, Y_final, rho, pi_opt, env_np)
     writer.add_scalar("metrics/final_distortion", float(dist_val))
 
-    writer.add_text("config/env", str(env_cfg))
-    writer.add_text("config/model", str({k: v for k, v in model_cfg.items() if k != 'device'}))
-    writer.add_text("config/train", str(train_cfg))
-    writer.add_text("config/anneal", str(anneal_cfg))
+
     writer.flush()
     writer.close()
 
