@@ -86,8 +86,10 @@ def run_trial(
         f"D{model_cfg['d_model']}_L{model_cfg['n_layers']}_H{model_cfg['n_heads']}_FF{model_cfg['d_ff']}_DO{model_cfg['dropout']}_"
         f"EpD{train_cfg['epochs_dbar']}BSD{train_cfg['batch_size_dbar']}NSD{train_cfg['num_samples_in_batch_dbar']}LRD{train_cfg['lr_dbar']}_"
         f"EpY{train_cfg['epochs_train_y']}LRY{train_cfg['lr_train_y']}_"
+        f"init{train_cfg['init_method']}_"    # ← ADD THIS LINE
         f"{anneal_cfg['beta_init']}to{anneal_cfg['beta_final']}rate{anneal_cfg['beta_growth_rate']}_Pert{anneal_cfg['perturbation_std']}"
     )
+
     log_dir = os.path.join(run_root, run_name)
     writer = SummaryWriter(log_dir=log_dir)
     writer.add_text("config/env", str(env_cfg))
@@ -155,7 +157,7 @@ def run_trial(
 def main():
     parser = argparse.ArgumentParser(description="ADEN sensitivity study over init and hyperparameters")
     parser.add_argument("--runs_root", type=str, default="runs/sensitivity/", help="TensorBoard log root")
-    parser.add_argument("--seeds", type=int, nargs="*", default=[0, 1], help="Random seeds to try")
+    parser.add_argument("--seeds", type=int, nargs="*", default=[0], help="Random seeds to try")
     parser.add_argument("--device", type=str, default="auto", help="cuda|cpu|auto")
     parser.add_argument("--print_size", type=int, default=10, help="Logging step interval")
     args = parser.parse_args()
@@ -186,14 +188,14 @@ def main():
     train_cfg_grid = [
         {
             # dbar
-            "epochs_dbar": 5000,
+            "epochs_dbar": 2000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 1e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1000,
+            "epochs_train_y": 500,
             "batch_size_train_y": None,
             "lr_train_y": 1e-4,
             "weight_decay_train_y": 1e-5,
@@ -203,14 +205,14 @@ def main():
         },
         {
             # dbar
-            "epochs_dbar": 5000,
+            "epochs_dbar": 2000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 1e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1000,
+            "epochs_train_y": 500,
             "batch_size_train_y": None,
             "lr_train_y": 1e-4,
             "weight_decay_train_y": 1e-5,
@@ -220,14 +222,14 @@ def main():
         },
         {
             # dbar
-            "epochs_dbar": 5000,
+            "epochs_dbar": 2000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 5e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1000,
+            "epochs_train_y": 500,
             "batch_size_train_y": None,
             "lr_train_y": 5e-4,
             "weight_decay_train_y": 1e-5,
@@ -237,14 +239,14 @@ def main():
         },
         {
             # dbar
-            "epochs_dbar": 5000,
+            "epochs_dbar": 2000,
             "batch_size_dbar": 32,
             "num_samples_in_batch_dbar": 128,
             "lr_dbar": 5e-4,
             "weight_decay_dbar": 1e-5,
             "tol_train_dbar": 1e-6,
             # y
-            "epochs_train_y": 1000,
+            "epochs_train_y": 500,
             "batch_size_train_y": None,
             "lr_train_y": 5e-4,
             "weight_decay_train_y": 1e-5,
@@ -265,20 +267,21 @@ def main():
     # run all combos
     for env_cfg in env_param_grid:
         for seed in args.seeds:
-            for model_cfg, train_cfg in itertools.product(model_cfg_grid, train_cfg_grid):
-                model_cfg_local = dict(model_cfg)
-                model_cfg_local["device"] = device
-                model_cfg_local["M"] = M
-                run_trial(
-                    X_np=X_np,
-                    env_cfg=env_cfg,
-                    model_cfg=model_cfg_local,
-                    train_cfg=train_cfg,
-                    anneal_cfg=anneal_cfg,
-                    seed=seed,
-                    run_root=args.runs_root + simulation_time,
-                    print_size=args.print_size,
-                )
+            for model_cfg in model_cfg_grid:
+                for train_cfg in train_cfg_grid:
+                    model_cfg_local = dict(model_cfg)
+                    model_cfg_local["device"] = device
+                    model_cfg_local["M"] = M
+                    run_trial(
+                        X_np=X_np,
+                        env_cfg=env_cfg,
+                        model_cfg=model_cfg_local,
+                        train_cfg=train_cfg,
+                        anneal_cfg=anneal_cfg,
+                        seed=seed,
+                        run_root=args.runs_root + simulation_time,
+                        print_size=args.print_size,
+                    )
 
 
 if __name__ == "__main__":
