@@ -120,12 +120,15 @@ def preprocess_data(X, method='pca', n_components=2, **kwargs):
     """
     if method == 'pca':
         reducer = PCA(n_components=n_components, **kwargs)
+        X_reduced = reducer.fit_transform(X)
+        cumulative_variance = np.sum(reducer.explained_variance_ratio_)
+        print(f"Cumulative variance explained by {n_components} components: {cumulative_variance:.2%}")
     elif method == 'tsne':
         reducer = TSNE(n_components=n_components, **kwargs)
+        X_reduced = reducer.fit_transform(X)
+        print(f"KL divergence for t-SNE with {n_components} components: {reducer.kl_divergence_:.4f}")
     else:
         raise ValueError("Method not supported. Choose 'pca' or 'tsne'.")
-    
-    X_reduced = reducer.fit_transform(X)
     
     # Normalize the data to be between 0 and 1
     scaler = MinMaxScaler()
@@ -150,19 +153,17 @@ def visualize_data(X, title=''):
     plt.show()
 
 if __name__ == "__main__":
-    # --- For ml-100k ---
+    # # --- For ml-100k ---
     # print("--- Processing ml-100k dataset ---")
     # X_100k = create_movielens_dataset(dataset_name='ml-100k')
     
     # print("Shape of the user features dataset (X_100k):", X_100k.shape)
-    # print("Data type of X_100k:", X_100k.dtype)
-    # print("Sample of the dataset (first 5 users):")
-    # print(X_100k[:5])
-    # print("\nBasic statistics of the dataset:")
-    # print("Min value:", np.min(X_100k))
-    # print("Max value:", np.max(X_100k))
-    # print("Mean value:", np.mean(X_100k))
-    # print("Standard deviation:", np.std(X_100k))
+    
+    # # Preprocess and visualize using PCA for ml-100k
+    # print("\nPreprocessing with PCA for ml-100k...")
+    # X_100k_pca = preprocess_data(X_100k, method='pca', n_components=2)
+    # print("Shape after PCA:", X_100k_pca.shape)
+    # visualize_data(X_100k_pca, title='User Features - ml-100k (PCA)')
 
     # # Preprocess and visualize using t-SNE for ml-100k
     # print("\nPreprocessing with t-SNE for ml-100k...")
@@ -175,28 +176,28 @@ if __name__ == "__main__":
     X_1m = create_movielens_dataset(dataset_name='ml-1m')
     
     print("Shape of the user features dataset (X_1m):", X_1m.shape)
-    print("Data type of X_1m:", X_1m.dtype)
-    print("Sample of the dataset (first 5 users):")
-    print(X_1m[:5])
-    print("\nBasic statistics of the dataset:")
-    print("Min value:", np.min(X_1m))
-    print("Max value:", np.max(X_1m))
-    print("Mean value:", np.mean(X_1m))
-    print("Standard deviation:", np.std(X_1m))
 
-    # Preprocess and visualize using t-SNE for ml-1m
-    print("\nPreprocessing with t-SNE for ml-1m...")
-    # Using a smaller subset for t-SNE on ml-1m due to computational cost
-    # You can adjust the sample size as needed
-    sample_size = X_1m.shape[0]
-    if len(X_1m) > sample_size:
-        indices = np.random.choice(len(X_1m), sample_size, replace=False)
-        X_1m_sample = X_1m[indices]
-    else:
-        X_1m_sample = X_1m
+    # Preprocess and visualize using PCA for ml-1m
+    print("\nPreprocessing with PCA for ml-1m...")
+    X_1m_pca = preprocess_data(X_1m, method='pca', n_components=10)
+    print("Shape after PCA:", X_1m_pca.shape)
+    visualize_data(X_1m_pca, title='User Features - ml-1m (PCA)')
+    np.save('movielens_1m_user_features_pca.npy', X_1m_pca)
+    print("Saved the ml-1m PCA processed user features to 'movielens_1m_user_features_pca.npy'")
+
+    # # Preprocess and visualize using t-SNE for ml-1m
+    # print("\nPreprocessing with t-SNE for ml-1m...")
+    # sample_size = 2000  # Using a smaller subset for t-SNE on ml-1m due to computational cost
+    # if len(X_1m) > sample_size:
+    #     indices = np.random.choice(len(X_1m), sample_size, replace=False)
+    #     X_1m_sample = X_1m[indices]
+    # else:
+    #     X_1m_sample = X_1m
         
-    X_1m_tsne = preprocess_data(X_1m_sample, method='tsne', n_components=2, perplexity=50, n_iter=400)
-    print("Shape after t-SNE:", X_1m_tsne.shape)
-    visualize_data(X_1m_tsne, title='User Features - ml-1m (t-SNE, sampled)')
-    np.save('movielens_1m_user_features.npy', X_1m_tsne)
-    print("Saved the ml-1m user features dataset to 'movielens_1m_user_features.npy'")
+    # X_1m_tsne = preprocess_data(X_1m_sample, method='tsne', n_components=2, perplexity=50, n_iter=400)
+    # print("Shape after t-SNE:", X_1m_tsne.shape)
+    # visualize_data(X_1m_tsne, title='User Features - ml-1m (t-SNE, sampled)')
+    
+    # # Save the final processed dataset
+    # np.save('movielens_1m_user_features_tsne.npy', X_1m_tsne)
+    # print("Saved the ml-1m t-SNE processed user features to 'movielens_1m_user_features_tsne.npy'")

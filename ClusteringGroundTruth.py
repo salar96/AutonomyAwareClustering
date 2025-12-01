@@ -67,6 +67,7 @@ def distortion(X, Y, rho, pi, env):
 def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=False):
     M = Y.shape[0]
     N = X.shape[0]
+    d_ = X.shape[1]
     beta = beta_min
     Y_list = []
     pi_list = []
@@ -93,7 +94,7 @@ def cluster_gt(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=
         pi_list.append(pi)
         Betas.append(beta)
         beta *= tau
-        Y += np.random.randn(M, 2) * 0.001  # Add small noise to avoid local minima
+        Y += np.random.randn(M, d_) * 0.001  # Add small noise to avoid local minima
     return Y, pi, Y_list, pi_list, Betas
 
 def cluster_gt_solver(X, Y, rho, env, beta_min=0.1, beta_max=10000.0, tau=1.5, verbose=False):

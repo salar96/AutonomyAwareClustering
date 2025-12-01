@@ -16,7 +16,7 @@ utils.set_seed(0)  # for reproducibility
 
 # LOADING DATA
 
-locs = np.load('movielens_1m_user_features.npy')
+locs = np.load('movielens_1m_user_features_pca.npy')
 print("Loaded movielens 1m user features dataset with shape:", locs.shape)
 X = torch.tensor(locs).float().to(device)
 N, d = X.shape
